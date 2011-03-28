@@ -22,7 +22,7 @@ unsigned char* in_buff = NULL;			//Buffer in thread_rcv
 unsigned char snd_mac[6];
 
 char *sender_ifname;				//src if_name
-char *dst_ifname;				//dst if_name
+char *receiver_ifname;				//dst if_name
 
 long total_sent_packets = 0;
 long total_recv_packets = 0;
@@ -78,14 +78,13 @@ void sigint(int signum) {
 }
 
 
-
 int main(int argc, char *argv[]) {
 
 	pthread_t thread1;
 
-	unsigned char rcv_mac[6] = {0x42, 0x00, 0x00, 0x00, 0x00, 0x00};
+	unsigned char rcv_mac[6]; // = {0x42, 0x00, 0x00, 0x00, 0x00, 0x00};
 	
-	struct ifreq ifr_sender;
+	struct ifreq ifr;
 
 	out_buff = (void*)malloc(ETH_FRAME_LEN+ETH_FCS_LEN); 	//Buffer for ethernet frame
 	unsigned char* data_ptr = out_buff + ETH_HLEN;		//Userdata in ethernet frame
@@ -98,15 +97,16 @@ int main(int argc, char *argv[]) {
 	int sent;						//length of sent packet
 	int time;
 
-	if (argc !=3)
+	if (argc !=4)
     	{
     		printf("Missing arguments.\n"
-    			"%s [sender_ifname] [time msec] \n",argv[0]);
+    			"%s [src_ifname] [dest_ifname] [time msec] \n",argv[0]);
     		exit(1);
 	}
 
 	sender_ifname = argv[1];
-	time = atoi(argv[2]);
+	receiver_ifname = argv[2];
+	time = atoi(argv[3]);
 
 	//open socket
 	sock_fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)); 
@@ -117,21 +117,41 @@ int main(int argc, char *argv[]) {
 	printf("Successfully opened socket: %i\n", sock_fd);
 
 	//retrieve ethernet interface index
-	strncpy(ifr_sender.ifr_name, sender_ifname, IFNAMSIZ);
-	if (ioctl(sock_fd, SIOCGIFINDEX, &ifr_sender) == -1) {
+	strncpy(ifr.ifr_name, receiver_ifname, IFNAMSIZ);
+	if (ioctl(sock_fd, SIOCGIFINDEX, &ifr) == -1) {
 		perror("SIOCGIFINDEX");
 		exit(1);
 	}
-	ifindex = ifr_sender.ifr_ifindex;
+	ifindex = ifr.ifr_ifindex;
 	printf("Successfully got interface index: %i\n", ifindex);
 
 	//retrieve corresponding MAC
-	if (ioctl(sock_fd, SIOCGIFHWADDR, &ifr_sender) == -1) {
+	if (ioctl(sock_fd, SIOCGIFHWADDR, &ifr) == -1) {
+		perror("SIOCGIFINDEX");
+		exit(1);
+	}
+
+	for (i = 0; i < 6; i++) {
+		rcv_mac[i] = ifr.ifr_hwaddr.sa_data[i];
+	}
+
+
+	//retrieve ethernet interface index
+	strncpy(ifr.ifr_name, sender_ifname, IFNAMSIZ);
+	if (ioctl(sock_fd, SIOCGIFINDEX, &ifr) == -1) {
+		perror("SIOCGIFINDEX");
+		exit(1);
+	}
+	ifindex = ifr.ifr_ifindex;
+	printf("Successfully got interface index: %i\n", ifindex);
+
+	//retrieve corresponding MAC
+	if (ioctl(sock_fd, SIOCGIFHWADDR, &ifr) == -1) {
 		perror("SIOCGIFINDEX");
 		exit(1);
 	}
 	for (i = 0; i < 6; i++) {
-		snd_mac[i] = ifr_sender.ifr_hwaddr.sa_data[i];
+		snd_mac[i] = ifr.ifr_hwaddr.sa_data[i];
 	}
 	printf("SENDER MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n",
 			snd_mac[0],snd_mac[1],snd_mac[2],snd_mac[3],snd_mac[4],snd_mac[5]);
@@ -160,10 +180,10 @@ int main(int argc, char *argv[]) {
 	} 
  
 	// Set promiscious mode 
-	strncpy(ifr_sender.ifr_name,sender_ifname,IFNAMSIZ); 
-	ioctl(sock_fd,SIOCGIFFLAGS,&ifr_sender); 
-	ifr_sender.ifr_flags |= IFF_PROMISC; 
-	ioctl(sock_fd,SIOCGIFFLAGS,&ifr_sender);
+	strncpy(ifr.ifr_name,sender_ifname,IFNAMSIZ); 
+	ioctl(sock_fd,SIOCGIFFLAGS,&ifr); 
+	ifr.ifr_flags |= IFF_PROMISC; 
+	ioctl(sock_fd,SIOCGIFFLAGS,&ifr);
 
 	signal(SIGINT, sigint);
 	printf("Sending packets....\n");

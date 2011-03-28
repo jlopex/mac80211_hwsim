@@ -1,0 +1,65 @@
+This folder contains:
+
+mac80211_hwsim/ -> Modified mac80211_hwsim module to support userspace frame tx.
+rawsocket/ 	-> Raw socket based ping-pong application to test stability and loss probability behaviour. 
+wmediumd/ 	-> User space application to apply loss probability per link.
+
+Dependencies:
+
+[rawsocket] -> libpthread 
+[wmediumd]  -> libnl 2.0
+
+***Compilation of applications***
+
+Once all dependencies are satisfied, just execute make on the main folder, binaries and modules will be created on each folder.
+
+***Execution of applications***
+
+[mac80211_hwsim]
+
+Modified mac80211_hwsim module starts in no wmediumd mode, so there is not loss probability applied to the tx frames, it just registers the custom generic netlink family and waits until an application is registered. When a application registers, all transmited frames will be handled by this user space application. When the registered application stops listening to the kernel module, the module will return to NO wmediumd mode automatically, and will not apply any loss probability.
+
+- To load the module and setup a simple mesh containing two nodes:
+
+ $ cd mac80211_hwsim
+ $ ./script.sh (It will ask for superuser permission )
+ 
+- To unload the module just execute sudo rmmod mac80211_hwsim
+
+[wmediumd]
+
+The user application is responsible for handling the frames sent from the kernel space, this sample application creates a simple probability matrix with the same probability values per link. 
+
+- To launch the application:
+
+ $ cd wmediumd
+ $ ./wmediumd [#of mesh interfaces] [Applied Loss Probability (0... 0.1 ... 0.9 1)]
+
+Once launch it will show the probability matrix and the accepted/dropped/total counters.
+
+[rawsocket]
+
+This a very simple Raw socket ping-pong application, developed to test the stability and behaviour of the mac80211_hwsim module. The application is composed from a server and a client. Server shows a counter of answered packets and clients shows sent and received back.
+
+
+	SERVER  ==============================================  CLIENT
+	
+	FRAME Sent ---------------- wmediumd ----------------->	Frame received 
+								     +
+	Frame rcvd <--------------- wmediumd-------------------	Frame send
+								
+								
+
+ SERVER
+
+ $ cd rawsocket
+ $ sudo ./server [listening interface]
+
+ CLIENT
+
+ $ cd rawsocket
+ $ sudo ./client [listening interface] [destination interface] [msec between frames]
+
+Enjoy!
+
+
