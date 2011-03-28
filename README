@@ -17,7 +17,7 @@ Once all dependencies are satisfied, just execute make on the main folder, binar
 
 [mac80211_hwsim]
 
-Modified mac80211_hwsim module starts in no wmediumd mode, so there is not loss probability applied to the tx frames, it just registers the custom generic netlink family and waits until an application is registered. When a application registers, all transmited frames will be handled by this user space application. When the registered application stops listening to the kernel module, the module will return to NO wmediumd mode automatically, and will not apply any loss probability.
+Modified mac80211_hwsim module starts in no wmediumd mode, so there is not loss probability applied to the tx frames, it just registers the custom generic netlink family, and waits until an user application is registered. When an application registers, all transmited frames will be handled by this user space application. When the registered application stops listening to the kernel module, the module will return to NO wmediumd mode automatically, and will not apply any loss probability.
 
 - To load the module and setup a simple mesh containing two nodes:
 
