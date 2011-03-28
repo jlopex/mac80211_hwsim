@@ -26,6 +26,8 @@ struct nl_cache *cache;
 struct genl_family *family;
 
 static double *prob_matrix;
+static int accepted = 0;
+static int dropped = 0;
 
 int send_frame_msg(struct mac_address *receiver, struct mac_address *transmitter, char *data, int data_len) {
 
@@ -73,14 +75,15 @@ static int process_messages_cb(struct nl_msg *msg, void *arg) {
 			int data_len = nla_get_u32(attrs[HWSIM_A_MSG_LEN]);
 			char* data = (char*)nla_data(attrs[HWSIM_A_MSG]);
 
-
-
 			if (should_drop_frame(prob_matrix,t,r)) {
-				printf("Lo tiro...\n");
+				//printf("DISCARDED\n");
+				dropped++;
 			} else {
-				printf("Pasa...\n");
+				//printf("ACCEPTED \n");
 				send_frame_msg(r, t, data, data_len);
+				accepted++;
 			}
+			printf("\raccepted: %d dropped: %d TOTAL: %d", accepted, dropped, accepted+dropped);
 		}
 	}
 	
@@ -136,6 +139,13 @@ void init_netlink() {
 
 
 int main(int argc, char* argv[]) {
+
+	if(argc!=3) {
+		printf("Missing arguments.\n"
+			"%s [num of mesh ifaces] [Ploss applied]\n",argv[0]);
+		exit(1);
+	}
+
 
 	int size = atoi(argv[1]);
 	double a_prob = atof(argv[2]);

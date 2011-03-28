@@ -47,7 +47,7 @@ void sigint(int signum) {
 
 	free(buff);
 
-	printf("Client terminating....\n");
+	printf("\nClient terminating....\n");
 	printf("Totally answ: %ld packets\n", total_answ_packets);
 	printf("Totally recv: %ld packets\n", total_recv_packets);
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 			}
 			total_answ_packets++;
 			if(!(total_answ_packets%10))
-				printf("Answered %ld packets...\n",total_answ_packets);
+				printf("\rAnswered %ld packets...",total_answ_packets);
 		}
 	}
 	return -1;

@@ -159,7 +159,7 @@ int should_drop_frame(double *aMatrix,struct mac_address *src, struct mac_addres
 		printf("ERROR: unknown link!\n");
 		return 0;
 	}
-	printf("%f\n",random_double);
+//	printf("%f\n",random_double);
 
 	if (random_double > prob_per_link)
 		return 0;

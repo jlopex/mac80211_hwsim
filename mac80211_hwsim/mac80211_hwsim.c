@@ -25,15 +25,15 @@
 #include <linux/rtnetlink.h>
 #include <linux/etherdevice.h>
 #include <linux/debugfs.h>
-
-// CODE ADDED
 #include <net/genetlink.h>
-// CODE ADDED
-
+#include "netlink.h"
 
 MODULE_AUTHOR("Jouni Malinen");
 MODULE_DESCRIPTION("Software simulator of 802.11 radio(s) for mac80211");
 MODULE_LICENSE("GPL");
+
+static rwlock_t pid_lock;
+static volatile int wmedium_pid;
 
 static int radios = 2;
 module_param(radios, int, 0444);
@@ -157,12 +157,6 @@ struct hwsim_vif_priv {
 };
 
 #define HWSIM_VIF_MAGIC	0x69537748
-
-///////////////// CODE ADDED
-
-
-//////////////////// CODE ADDED
-
 
 static inline void hwsim_check_magic(struct ieee80211_vif *vif)
 {
@@ -333,388 +327,6 @@ struct hwsim_radiotap_hdr {
 	__le16 rt_chbitmask;
 } __packed;
 
-/// MOVED!!!!
-
-struct mac80211_hwsim_addr_match_data {
-	bool ret;
-	const u8 *addr;
-};
-
-static void mac80211_hwsim_addr_iter(void *data, u8 *mac,
-				     struct ieee80211_vif *vif)
-{
-	struct mac80211_hwsim_addr_match_data *md = data;
-	if (memcmp(mac, md->addr, ETH_ALEN) == 0)
-		md->ret = true;
-}
-
-
-static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
-				      const u8 *addr)
-{
-	struct mac80211_hwsim_addr_match_data md;
-
-	if (memcmp(addr, data->hw->wiphy->perm_addr, ETH_ALEN) == 0)
-		return true;
-
-	md.ret = false;
-	md.addr = addr;
-	ieee80211_iterate_active_interfaces_atomic(data->hw,
-						   mac80211_hwsim_addr_iter,
-						   &md);
-
-	return md.ret;
-}
-
-static void mac80211_hwsim_monitor_ack(struct ieee80211_hw *hw, const u8 *addr)
-{
-	struct mac80211_hwsim_data *data = hw->priv;
-	struct sk_buff *skb;
-	struct hwsim_radiotap_hdr *hdr;
-	u16 flags;
-	struct ieee80211_hdr *hdr11;
-
-	if (!netif_running(hwsim_mon))
-		return;
-
-	skb = dev_alloc_skb(100);
-	if (skb == NULL)
-		return;
-
-	hdr = (struct hwsim_radiotap_hdr *) skb_put(skb, sizeof(*hdr));
-	hdr->hdr.it_version = PKTHDR_RADIOTAP_VERSION;
-	hdr->hdr.it_pad = 0;
-	hdr->hdr.it_len = cpu_to_le16(sizeof(*hdr));
-	hdr->hdr.it_present = cpu_to_le32((1 << IEEE80211_RADIOTAP_FLAGS) |
-					  (1 << IEEE80211_RADIOTAP_CHANNEL));
-	hdr->rt_flags = 0;
-	hdr->rt_rate = 0;
-	hdr->rt_channel = cpu_to_le16(data->channel->center_freq);
-	flags = IEEE80211_CHAN_2GHZ;
-	hdr->rt_chbitmask = cpu_to_le16(flags);
-
-	hdr11 = (struct ieee80211_hdr *) skb_put(skb, 10);
-	hdr11->frame_control = cpu_to_le16(IEEE80211_FTYPE_CTL |
-					   IEEE80211_STYPE_ACK);
-	hdr11->duration_id = cpu_to_le16(0);
-	memcpy(hdr11->addr1, addr, ETH_ALEN);
-
-	skb->dev = hwsim_mon;
-	skb_set_mac_header(skb, 0);
-	skb->ip_summed = CHECKSUM_UNNECESSARY;
-	skb->pkt_type = PACKET_OTHERHOST;
-	skb->protocol = htons(ETH_P_802_2);
-	memset(skb->cb, 0, sizeof(skb->cb));
-	netif_rx(skb);
-}
-
-/// MOVED!!!!
-
-
-/// CODE ADDED!!!
-
-enum {
-	HWSIM_A_UNSPEC,
-	HWSIM_A_ADDR_RECEIVER,
-	HWSIM_A_ADDR_TRANSMITTER,
-	HWSIM_A_MSG_LEN,
-	HWSIM_A_MSG,
-	__HWSIM_A_MAX,
-};
-#define HWSIM_A_MAX (__HWSIM_A_MAX - 1)
-
-static struct nla_policy hwsim_genl_policy[HWSIM_A_MAX + 1] = {
-	[HWSIM_A_ADDR_RECEIVER] = { .type = NLA_UNSPEC, .len = 6*sizeof(u8) },
-	[HWSIM_A_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC, .len = 6*sizeof(u8) },
-	[HWSIM_A_MSG_LEN] = { .type = NLA_U32 },
-	[HWSIM_A_MSG] = { .type = NLA_STRING },
-};
-
-#define VERSION_NR 1
-
-static struct genl_family hwsim_genl_family = {
-	.id = GENL_ID_GENERATE,
-	.hdrsize = 0,
-	.name = "HWSIM",
-	.version = VERSION_NR, 
-	.maxattr = HWSIM_A_MAX,
-};
-
-enum {
-	HWSIM_C_UNSPEC,
-	HWSIM_C_REGISTER,
-	HWSIM_C_FRAME,
-	__HWSIM_C_MAX,
-};
-#define HWSIM_C_MAX (_HWSIM_C_MAX - 1)
-
-static rwlock_t pid_lock;
-static volatile int snd_pid;
-
-static int hwsim_frame_send(struct mac_address *receiver, struct mac_address *transmitter, struct sk_buff *my_skb, int my_pid) {
-
-       	unsigned char *output_buff;
-	struct sk_buff *skb;
-	void *msg_head;
-	int rc;
-
-//	printk("TRYING TO SEND A FRAME\n");
-
-	skb=genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC); // GFP_KERNEL
-	if (skb == NULL) {
-	printk("Problem generating sk_buff\n");
-	return -1;
-	}
-	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0, HWSIM_C_FRAME);
-	if (msg_head == NULL) {
-		printk("Problem with msg_head\n");
-	return -1;
-	}
-
-	if (receiver) {
-		rc = nla_put(skb, HWSIM_A_ADDR_RECEIVER, sizeof(struct mac_address), receiver);
-	} else {
-		printk("ERROR receiver = NULL\n");
-		return -1;
-	}
-
-	if (transmitter) {
-		rc = nla_put(skb, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), transmitter);
-	} else {
-		printk("ERROR transmitter = NULL\n");
-		return -1;
-	}	
-	
-
-	if (my_skb) {
-		output_buff = kmalloc(my_skb->len,GFP_ATOMIC);
-		memcpy(output_buff, my_skb->data, my_skb->len);
-		rc = nla_put_u32(skb, HWSIM_A_MSG_LEN, my_skb->len);
-		rc = nla_put(skb, HWSIM_A_MSG, my_skb->len, output_buff);
-	} else {
-		printk("ERROR my_skb = NULL\n");
-		return -1;
-	}
-	if (rc != 0) {
-		printk("Error filling msg payload\n");
-		return -1;
-	}
-	genlmsg_end(skb,msg_head);
-	genlmsg_unicast(&init_net,skb,my_pid);
-	if (rc !=0) {
-        	printk("Error sending frame msg to %d\n",snd_pid);
-        	return -1;
-	}
-
-	kfree(output_buff);
-	return 0;
-
-}
-
-static int hwsim_frame_received(struct sk_buff *skb_2, struct genl_info *info) {
-
-	struct ieee80211_hdr *hdr;
-	struct ieee80211_hw *hw;
-	struct mac80211_hwsim_data *data, *data2;
-//	struct ieee80211_tx_info *txi;
-
-	bool ack = false;
-	bool data_found = false;
-	bool data2_found = false;
-
-	struct mac_address *r = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_RECEIVER]);
-	struct mac_address *t = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_TRANSMITTER]);
-	int frame_data_len = nla_get_u32(info->attrs[HWSIM_A_MSG_LEN]);
-	char* frame_data = (char*)nla_data(info->attrs[HWSIM_A_MSG]);
-
-	printk("RECEIVED A FRAME\n");
-/*	
-	printk("R:%02X:%02X:%02X:%02X:%02X:%02X\n",r->addr[0],r->addr[1],r->addr[2],r->addr[3],r->addr[4],r->addr[5]);
-	printk("T:%02X:%02X:%02X:%02X:%02X:%02X\n",t->addr[0],t->addr[1],t->addr[2],t->addr[3],t->addr[4],t->addr[5]);
-	printk("%d\n",frame_data_len);
-	printk("msg_data[%d]=%d\n",frame_data_len-1,frame_data[frame_data_len-1]);
-	printk("msg_data[%d]=%d\n",frame_data_len,frame_data[frame_data_len]);
-	printk("msg_data[%d]=%d\n",frame_data_len+1,frame_data[frame_data_len+1]);
-*/
-	// Recreamos el sk_buff
-	struct sk_buff *skb = alloc_skb(4000,GFP_KERNEL);
-	skb_reserve(skb,500);
-	memcpy(skb_put(skb,frame_data_len),frame_data,frame_data_len);
-
-	// Recuperamos el *data del transmitter
-	spin_lock(&hwsim_radio_lock);
-	list_for_each_entry(data, &hwsim_radios, list) {
-//		printk("Buscando *data para MAC transmitter\n");
-		if(memcmp(data->addresses[1].addr,r,sizeof(struct mac_address))) {
-//			printk("FOUND!!!\n");
-			data_found=true;
-			break;
-		}
-	}
-	spin_unlock(&hwsim_radio_lock);
-
-	if (!data_found)
-		return -1;
-
-
-	// Recuperamos el *data2 del receiver
-	spin_lock(&hwsim_radio_lock);
-	list_for_each_entry(data2, &hwsim_radios, list) {
-//		printk("Buscando *data2 para MAC transmitter\n");
-		if(memcmp(data2->addresses[1].addr,t,sizeof(struct mac_address))) {
-//			printk("FOUND!!!\n");
-			data2_found=true;
-			break;
-		}
-	}
-	spin_unlock(&hwsim_radio_lock);
-
-	if (!data2_found)
-		return -1;
-
-	// Recuperamos el ieee80211_hdr del paquete
-	hdr = (struct ieee80211_hdr *)skb->data;
-/*	printk("hdr->addr1     %02X:%02X:%02X:%02X:%02X:%02X\n",hdr->addr1[0],hdr->addr1[1],hdr->addr1[2],hdr->addr1[3],hdr->addr1[4],hdr->addr1[5]);
-	printk("r->addr        %02X:%02X:%02X:%02X:%02X:%02X\n",r->addr[0],r->addr[1],r->addr[2],r->addr[3],r->addr[4],r->addr[5]);
-	printk("data2 receiver %02X:%02X:%02X:%02X:%02X:%02X\n",data2->hw->wiphy->perm_addr[0],data2->hw->wiphy->perm_addr[1],data2->hw->wiphy->perm_addr[2],data2->hw->wiphy->perm_addr[3],data2->hw->wiphy->perm_addr[4],data2->hw->wiphy->perm_addr[5]);
-*/
-
-	if(mac80211_hwsim_addr_match(data2, hdr->addr1)) {
-		ack = true;
-		printk("ACK TRUE!\n");
-	}	
-
-	ieee80211_rx_irqsafe(data2->hw,skb);
-
-	if (ack && skb->len >=16) {
-		mac80211_hwsim_monitor_ack(data->hw, hdr->addr2);
-	}
-/*
-	txi = IEEE80211_SKB_CB(skb);
-	if (txi->control.vif)
-		hwsim_check_magic(txi->control.vif);
-	if (txi->control.sta)
-		hwsim_check_sta_magic(txi->control.sta);
-
-	ieee80211_tx_info_clear_status(txi);
-	if (!(txi->flags & IEEE80211_TX_CTL_NO_ACK) && ack)
-		txi->flags |= IEEE80211_TX_STAT_ACK;
-	ieee80211_tx_status_irqsafe(data->hw, skb);
-*/
-//	kfree_skb(skb);
-
-	return 0;
-}
-
-static int hwsim_register_received(struct sk_buff *skb_2, struct genl_info *info) {
-
-//	struct mac_address r;
-//	struct mac_address t;
-
-	// SK_BUFF
-//	struct sk_buff *my_skb = alloc_skb(4000,GFP_KERNEL);
-	
-	printk("RECEIVED A REGISTER\n");
-
-//	skb_reserve(my_skb,500);
-//	memset(skb_put(my_skb,2500),9,2500);
-	// ADDR
-//	memset(r.addr, 0, 6);
-//	memset(t.addr, 1, 6);
-
-	if (info == NULL)
-        	goto out;
-
-	write_lock(&pid_lock);
-	snd_pid = info->snd_pid;
-	write_unlock(&pid_lock);
-//	read_lock(&pid_lock);
-//	int my_pid = snd_pid;
-//	read_unlock(&pid_lock);	
-//	hwsim_frame_send(NULL, NULL, NULL, my_pid);
-//	kfree_skb(my_skb);
-
-	return 0;
-
-out:
-	printk("an error occured in 80211hwsim_register:\n");
-	return -1;
-}
-
-struct genl_ops hwsim_genl_ops_register = {
-	.cmd = HWSIM_C_REGISTER,
-	.flags = 0,
-	.policy = hwsim_genl_policy,
-	.doit = hwsim_register_received,
-	.dumpit = NULL,
-};
-
-struct genl_ops hwsim_genl_ops_frame = {
-	.cmd = HWSIM_C_FRAME,
-	.flags = 0,
-	.policy = hwsim_genl_policy,
-	.doit = hwsim_frame_received,
-	.dumpit = NULL,
-};
-
-
-static int init_netlink(void)
-{
-	int rc;
-	printk("init netlink\n");
-
-	rwlock_init(&pid_lock);
-	rc = genl_register_family(&hwsim_genl_family);
-	if (rc != 0)
-		goto failure;
-	rc = genl_register_ops(&hwsim_genl_family, &hwsim_genl_ops_register);
-	if (rc != 0){
-		printk("register ops: %i\n",rc);
-		genl_unregister_family(&hwsim_genl_family);
-	goto failure;	
-	}
-	rc = genl_register_ops(&hwsim_genl_family, &hwsim_genl_ops_frame);
-	if (rc != 0){
-		printk("register ops: %i\n",rc);
-		genl_unregister_family(&hwsim_genl_family);
-		goto failure;
-	}
-	return 0;
-
-  failure:
-	printk("an error occured while inserting the generic netlink\n");
-	return -1;
-}
-
-static void exit_netlink(void) {
-	int ret;
-
-	printk("Exiting Generic Netlink Module\n");
-	//unregister the functions
-	
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_genl_ops_register);
-	if(ret != 0){
-        	printk("unregister ops: %i\n",ret);
-        	return;
-	}
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_genl_ops_frame);
-	if(ret != 0){
-        	printk("unregister ops: %i\n",ret);
-        	return;
-	}
-	ret = genl_unregister_family(&hwsim_genl_family);
-	if(ret !=0){
-		printk("unregister family %i\n",ret);
-	}
-}
-
-
-
-
-
-
-
-// CODE ADDED!!!!
 
 static netdev_tx_t hwsim_mon_xmit(struct sk_buff *skb,
 					struct net_device *dev)
@@ -768,7 +380,7 @@ static void mac80211_hwsim_monitor_rx(struct ieee80211_hw *hw,
 	netif_rx(skb);
 }
 
-/*
+
 static void mac80211_hwsim_monitor_ack(struct ieee80211_hw *hw, const u8 *addr)
 {
 	struct mac80211_hwsim_data *data = hw->priv;
@@ -809,7 +421,7 @@ static void mac80211_hwsim_monitor_ack(struct ieee80211_hw *hw, const u8 *addr)
 	skb->protocol = htons(ETH_P_802_2);
 	memset(skb->cb, 0, sizeof(skb->cb));
 	netif_rx(skb);
-}*/
+}
 
 
 static bool hwsim_ps_rx_ok(struct mac80211_hwsim_data *data,
@@ -839,7 +451,7 @@ static bool hwsim_ps_rx_ok(struct mac80211_hwsim_data *data,
 	return true;
 }
 
-/*
+
 struct mac80211_hwsim_addr_match_data {
 	bool ret;
 	const u8 *addr;
@@ -870,14 +482,63 @@ static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
 
 	return md.ret;
 }
-*/
+
+
+static int hwsim_send_frame_nl(struct mac_address *receiver, struct mac_address *transmitter, struct sk_buff *my_skb, int _pid) {
+
+	unsigned char *output_buff;
+	struct sk_buff *skb;
+	void *msg_head;
+	int rc;
+
+//	printk(KERN_DEBUG"TRYING TO SEND A FRAME\n");
+
+	if (!receiver || !transmitter || !my_skb || !_pid) {
+		printk(KERN_INFO"Problem with parameters at func: %s\n",__func__);
+		return -1;
+	}
+
+	skb=genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
+	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0, HWSIM_C_FRAME);
+	if (msg_head == NULL) {
+		printk(KERN_INFO"Problem with msg_head\n");
+		return -1;
+	}
+
+	rc = nla_put(skb, HWSIM_A_ADDR_RECEIVER, sizeof(struct mac_address), receiver);
+	rc = nla_put(skb, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), transmitter);
+	output_buff = kmalloc(my_skb->len,GFP_ATOMIC);
+	memcpy(output_buff, my_skb->data, my_skb->len);
+	rc = nla_put_u32(skb, HWSIM_A_MSG_LEN, my_skb->len);
+	rc = nla_put(skb, HWSIM_A_MSG, my_skb->len, output_buff);
+	
+	if (rc != 0) {
+		printk(KERN_INFO"Error filling msg payload\n");
+		return -1;
+	}
+	
+	genlmsg_end(skb,msg_head);
+	rc = genlmsg_unicast(&init_net,skb,_pid);
+	if (rc !=0) {
+        	printk(KERN_INFO"Error sending frame msg to %d\n",_pid);
+        	printk(KERN_INFO"Switching to no wmediumd mode\n");
+		write_lock(&pid_lock);
+		wmedium_pid = 0;
+		write_unlock(&pid_lock);	
+		return -1;
+	}
+
+	kfree(output_buff);
+	return 0;
+}
+
 
 static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 				    struct sk_buff *skb)
 {
-	int my_pid = 0;
+	int _pid = 0;
+	
 	struct mac80211_hwsim_data *data = hw->priv, *data2;
-
 	bool ack = false;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
@@ -887,9 +548,11 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 		wiphy_debug(hw->wiphy, "Trying to TX when idle - reject\n");
 		return false;
 	}
+
+	// Look for the wmediumd pid	
 	read_lock(&pid_lock);
-	if (snd_pid) {
-		my_pid = snd_pid;
+	if (wmedium_pid) {
+		_pid = wmedium_pid;
 	}
 	read_unlock(&pid_lock);
 	
@@ -915,10 +578,10 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	spin_lock(&hwsim_radio_lock);
 	list_for_each_entry(data2, &hwsim_radios, list) {
 		struct sk_buff *nskb;
-		/*Si es el mismo que esta enviando nada*/
+
 		if (data == data2)
 			continue;
-		
+
 		if (data2->idle || !data2->started ||
 		    !hwsim_ps_rx_ok(data2, skb) ||
 		    !data->channel || !data2->channel ||
@@ -927,30 +590,20 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 			continue;
 
 		nskb = skb_copy(skb, GFP_ATOMIC);
-			
-
 		if (nskb == NULL)
 			continue;
 
+		if (mac80211_hwsim_addr_match(data2, hdr->addr1))
+			ack = true;
 		memcpy(IEEE80211_SKB_RXCB(nskb), &rx_status, sizeof(rx_status));
-
-
-		if (my_pid !=0) {
-			hwsim_frame_send((struct mac_address*)&data2->addresses[1].addr,
+		
+		if (_pid !=0) {
+			hwsim_send_frame_nl((struct mac_address*)&data2->addresses[1].addr,
 					(struct mac_address*)&data->addresses[1].addr,
-					nskb,my_pid);
-/*			struct mac_address* r = (struct mac_address*)&data2->addresses[1].addr;
-			printk("INFO SENT\n");
-			printk("hdr->addr1     %02X:%02X:%02X:%02X:%02X:%02X\n",hdr->addr1[0],hdr->addr1[1],hdr->addr1[2],hdr->addr1[3],hdr->addr1[4],hdr->addr1[5]);
-			printk("r->addr        %02X:%02X:%02X:%02X:%02X:%02X\n",r->addr[0],r->addr[1],r->addr[2],r->addr[3],r->addr[4],r->addr[5]);
-			printk("data2 receiver %02X:%02X:%02X:%02X:%02X:%02X\n",data2->hw->wiphy->perm_addr[0],data2->hw->wiphy->perm_addr[1],data2->hw->wiphy->perm_addr[2],data2->hw->wiphy->perm_addr[3],data2->hw->wiphy->perm_addr[4],data2->hw->wiphy->perm_addr[5]);
-
-*/
-
+					nskb,_pid);
 		} else {
 			if (mac80211_hwsim_addr_match(data2, hdr->addr1)) {
 				ack = true;
-				printk("ACK TRUE!\n");
 			}
 			ieee80211_rx_irqsafe(data2->hw, nskb);
 		}
@@ -975,8 +628,13 @@ static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	}
 
 	ack = mac80211_hwsim_tx_frame(hw, skb);
+	if (ack && skb->len >= 16) {
+		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
+		mac80211_hwsim_monitor_ack(hw, hdr->addr2);
+	}
 
 	txi = IEEE80211_SKB_CB(skb);
+
 	if (txi->control.vif)
 		hwsim_check_magic(txi->control.vif);
 	if (txi->control.sta)
@@ -986,9 +644,6 @@ static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	if (!(txi->flags & IEEE80211_TX_CTL_NO_ACK) && ack)
 		txi->flags |= IEEE80211_TX_STAT_ACK;
 	ieee80211_tx_status_irqsafe(hw, skb);
-
-
-
 	return NETDEV_TX_OK;
 }
 
@@ -1484,6 +1139,7 @@ static struct ieee80211_ops mac80211_hwsim_ops =
 	.flush = mac80211_hwsim_flush,
 };
 
+
 static void mac80211_hwsim_free(void)
 {
 	struct list_head tmplist, *i, *tmp;
@@ -1662,6 +1318,158 @@ static int hwsim_fops_group_write(void *dat, u64 val)
 	return 0;
 }
 
+static int hwsim_frame_received_nl(struct sk_buff *skb_2, struct genl_info *info) {
+
+	struct ieee80211_hdr *hdr;
+	struct mac80211_hwsim_data *data, *data2;
+
+	bool ack = false;
+	bool _found = false;
+	
+	struct mac_address *r = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_RECEIVER]);
+	struct mac_address *t = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_TRANSMITTER]);
+	int frame_data_len = nla_get_u32(info->attrs[HWSIM_A_MSG_LEN]);
+	char* frame_data = (char*)nla_data(info->attrs[HWSIM_A_MSG]);
+	struct sk_buff *skb = alloc_skb(4000,GFP_KERNEL); // HARDCODE
+
+//	printk(KERN_DEBUG"RECEIVED A FRAME\n");
+
+	skb_reserve(skb,500);
+	memcpy(skb_put(skb,frame_data_len),frame_data,frame_data_len);
+
+	spin_lock(&hwsim_radio_lock);
+	list_for_each_entry(data, &hwsim_radios, list) {
+		if(memcmp(data->addresses[1].addr,r,sizeof(struct mac_address))) {
+			_found=true;
+			break;
+		}
+	}
+	spin_unlock(&hwsim_radio_lock);
+
+	if (!_found)
+		return -1;
+	_found = false;
+
+	spin_lock(&hwsim_radio_lock);
+	list_for_each_entry(data2, &hwsim_radios, list) {
+		if(memcmp(data2->addresses[1].addr,t,sizeof(struct mac_address))) {
+			_found=true;
+			break;
+		}
+	}
+	spin_unlock(&hwsim_radio_lock);
+
+	if (!_found)
+		return -1;
+
+	// Recuperamos el ieee80211_hdr del paquete
+	hdr = (struct ieee80211_hdr *)skb->data;
+	
+	if(mac80211_hwsim_addr_match(data2, hdr->addr1)) {
+		ack = true;
+	//	printk("ACK TRUE!\n");
+	}	
+
+	ieee80211_rx_irqsafe(data2->hw,skb);
+
+	if (ack && skb->len >=16) {
+		mac80211_hwsim_monitor_ack(data->hw, hdr->addr2);
+	}
+
+	return 0;
+}
+
+
+
+
+static int hwsim_register_received_nl(struct sk_buff *skb_2, struct genl_info *info) {
+
+	if (info == NULL)
+        	goto out;
+
+	write_lock(&pid_lock);
+	wmedium_pid = info->snd_pid;
+	write_unlock(&pid_lock);
+
+	printk(KERN_DEBUG"Received a REGISTER, switching to wmediumd mode with pid %d\n",info->snd_pid);
+
+	return 0;
+
+out:
+	printk("an error occured in hwsim_register_received_nl:\n");
+	return -1;
+}
+
+// Generic Netlink operations array
+static struct genl_ops hwsim_ops[] = {
+	{
+		.cmd = HWSIM_C_REGISTER,
+		.flags = 0,
+		.policy = hwsim_genl_policy,
+		.doit = hwsim_register_received_nl,
+		.dumpit = NULL,
+	},
+	{
+		.cmd = HWSIM_C_FRAME,
+		.flags = 0,
+		.policy = hwsim_genl_policy,
+		.doit = hwsim_frame_received_nl,
+		.dumpit = NULL,
+	},
+};
+
+static int hwsim_init_netlink(void)
+{
+	int rc;
+	printk("initializing generic netlink\n");
+
+	rwlock_init(&pid_lock);
+	
+	rc = genl_register_family(&hwsim_genl_family);
+	if (rc != 0)
+		goto failure;
+	rc = genl_register_ops(&hwsim_genl_family, &hwsim_ops[0]);
+	if (rc != 0){
+		printk(KERN_DEBUG"register ops: %i\n",rc);
+		genl_unregister_family(&hwsim_genl_family);
+	goto failure;	
+	}
+	rc = genl_register_ops(&hwsim_genl_family, &hwsim_ops[1]);
+	if (rc != 0){
+		printk(KERN_DEBUG"register ops: %i\n",rc);
+		genl_unregister_family(&hwsim_genl_family);
+		goto failure;
+	}
+	return 0;
+
+  failure:
+	printk(KERN_DEBUG"an error occured while initializing the generic netlink\n");
+	return -1;
+}
+
+static void hwsim_exit_netlink(void) {
+	int ret;
+
+	printk(KERN_DEBUG"Exiting Generic Netlink Module\n");
+	//unregister the functions
+	
+	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[0]);
+	if(ret != 0){
+        	printk(KERN_DEBUG"unregister ops: %i\n",ret);
+        	return;
+	}
+	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[1]);
+	if(ret != 0){
+        	printk(KERN_DEBUG"unregister ops: %i\n",ret);
+        	return;
+	}
+	ret = genl_unregister_family(&hwsim_genl_family);
+	if(ret !=0){
+		printk(KERN_DEBUG "unregister family %i\n",ret);
+	}
+}
+
+
 DEFINE_SIMPLE_ATTRIBUTE(hwsim_fops_group,
 			hwsim_fops_group_read, hwsim_fops_group_write,
 			"%llx\n");
@@ -1696,8 +1504,6 @@ static int __init init_mac80211_hwsim(void)
 	for (i = 0; i < radios; i++) {
 		printk(KERN_DEBUG "mac80211_hwsim: Initializing radio %d\n",
 		       i);
-
-		// SETEA EL PUNTERO HW A LA DIRECCION DE MEMORIA CREADA PARA EL HW
 		hw = ieee80211_alloc_hw(sizeof(*data), &mac80211_hwsim_ops);
 		if (!hw) {
 			printk(KERN_DEBUG "mac80211_hwsim: ieee80211_alloc_hw "
@@ -1705,12 +1511,9 @@ static int __init init_mac80211_hwsim(void)
 			err = -ENOMEM;
 			goto failed;
 		}
-		// SETEA data a hw->priv
 		data = hw->priv;
-		// Setea data->hw a hw
 		data->hw = hw;
 
-		// Crea un device dentro de data
 		data->dev = device_create(hwsim_class, NULL, 0, hw,
 					  "hwsim%d", i);
 		if (IS_ERR(data->dev)) {
@@ -1720,10 +1523,8 @@ static int __init init_mac80211_hwsim(void)
 			err = -ENOMEM;
 			goto failed_drvdata;
 		}
-		// Setea el puntero de data->dev->driver a la dirección de memoria del driver
 		data->dev->driver = &mac80211_hwsim_driver;
-		
-		// Setea el hw con el driver
+
 		SET_IEEE80211_DEV(hw, data->dev);
 		addr[3] = i >> 8;
 		addr[4] = i;
@@ -1865,8 +1666,6 @@ static int __init init_mac80211_hwsim(void)
 		/* give the regulatory workqueue a chance to run */
 		if (regtest)
 			schedule_timeout_interruptible(1);
-		
-		// Registra el hw
 		err = ieee80211_register_hw(hw);
 		if (err < 0) {
 			printk(KERN_DEBUG "mac80211_hwsim: "
@@ -1954,14 +1753,8 @@ static int __init init_mac80211_hwsim(void)
 		goto failed_mon;
 
 	rtnl_unlock();
-
-
-	//////////////// CODE ADDED
-
-	err = init_netlink();
-
-	//////////////// CODE ADDED
-
+	
+	err = hwsim_init_netlink();
 
 	return 0;
 
@@ -1985,12 +1778,10 @@ static void __exit exit_mac80211_hwsim(void)
 {
 	printk(KERN_DEBUG "mac80211_hwsim: unregister radios\n");
 
+	hwsim_exit_netlink();
+	
 	mac80211_hwsim_free();
 	unregister_netdev(hwsim_mon);
-
-	///// CODE ADDED	
-	exit_netlink();
-	///// CODE ADDED
 }
 
 

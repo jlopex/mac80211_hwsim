@@ -1,14 +1,3 @@
-/*
- ============================================================================
- Name        : client.c
- Author      : Javier Lopez
- Version     :
- Copyright   : 
- Description :
- ============================================================================
- */
-
-
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -53,10 +42,10 @@ void * count_packets(void *ptr) {
 		}
 
 		//See if we should answer (destination address == our MAC)
-		if (memcmp( (const void*)in_hdr->h_dest, (const void*)snd_mac, ETH_ALEN) == 0 ) {
+		if (in_hdr->h_proto == 0x6400  && memcmp( (const void*)in_hdr->h_dest, (const void*)snd_mac, ETH_ALEN) == 0 ) {
 			total_recv_packets++;
-			if (!(total_recv_packets%10))
-				printf("total_recv_packets: %ld\n",total_recv_packets);
+/*			if (!(total_recv_packets%10))
+				printf("total_recv_packets: %ld\n",total_recv_packets);*/
 		}
 	}
 }
@@ -78,11 +67,11 @@ void sigint(int signum) {
 	free(out_buff);
 	free(in_buff);
 
-	float loss = ((double)total_recv_packets/(double)total_sent_packets);
+	float loss = 1-((double)total_recv_packets/(double)total_sent_packets);
 	printf("Client terminating....\n");
 	printf("Totally sent: %ld packets\n", total_sent_packets);
 	printf("Totally recv: %ld packets\n", total_recv_packets);
-	printf("%f%% packet loss\n", loss);
+	printf("Ploss=%f\n", loss);
 
 
 	exit(0);
@@ -107,16 +96,17 @@ int main(int argc, char *argv[]) {
 	int ifindex = 0;					//ethernet interface index
 	int i;							//Counter
 	int sent;						//length of sent packet
+	int time;
 
-
-	if (argc !=2)
+	if (argc !=3)
     	{
     		printf("Missing arguments.\n"
-    			"%s [sender_ifname] \n",argv[0]);
+    			"%s [sender_ifname] [time msec] \n",argv[0]);
     		exit(1);
 	}
 
 	sender_ifname = argv[1];
+	time = atoi(argv[2]);
 
 	//open socket
 	sock_fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)); 
@@ -182,7 +172,7 @@ int main(int argc, char *argv[]) {
 	memcpy(out_hdr->h_dest, (void*)rcv_mac, ETH_ALEN);
 	memcpy(out_hdr->h_source, (void*)snd_mac, ETH_ALEN);
 
-	//fill it with random data....
+	//fill it with some data....
 	for (i = 0; i < 100; i++) {
 		data_ptr[i] = (unsigned char)(0);
 	}
@@ -192,14 +182,15 @@ int main(int argc, char *argv[]) {
 		sent = sendto(sock_fd, out_buff, i+ETH_HLEN, 0, (struct sockaddr*)&s_addr, sizeof(s_addr));
 		total_sent_packets++;
 		if (!(total_sent_packets%10)){
-			printf("total_sent_packets: %ld\n",total_sent_packets);
+			printf("\rtotal_sent_packets: %ld "
+				"total_recv_packets: %ld",total_sent_packets,total_recv_packets);
 			/*printf("DST address: %02X:%02X:%02X:%02X:%02X:%02X\n",	out_hdr->h_dest[0],out_hdr->h_dest[1],out_hdr->h_dest[2],out_hdr->h_dest[3],out_hdr->h_dest[4],out_hdr->h_dest[5]);
 			printf("SRC address: %02X:%02X:%02X:%02X:%02X:%02X\n",	out_hdr->h_source[0],out_hdr->h_source[1],out_hdr->h_source[2],out_hdr->h_source[3],out_hdr->h_source[4],out_hdr->h_source[5]);
 			printf("len:%d\n",sent);
 			printf("Packet type ID field  :%#x\n", ntohs(out_hdr->h_proto));
 			printf("data_ptr[250]=%d\n",*(data_ptr+250)); */
 		}	
-		usleep(500000);
+		usleep(time*1000);
 	}
 
 	return -1;
