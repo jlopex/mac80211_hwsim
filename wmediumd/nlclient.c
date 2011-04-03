@@ -18,6 +18,7 @@
 #include "nlclient.h"
 #include "probability.h"
 #include "mac_address.h"
+#include "ieee80211_hdr.h"
 
 struct nl_sock *sock;
 struct nl_msg *msg;
@@ -25,11 +26,17 @@ struct nl_cb *cb;
 struct nl_cache *cache;
 struct genl_family *family;
 
+static int size;
 static double *prob_matrix;
 static int accepted = 0;
 static int dropped = 0;
 
-int send_frame_msg(struct mac_address *receiver, struct mac_address *transmitter, char *data, int data_len) {
+/*
+ * Send a frame to the kernel space.
+ */
+
+
+int send_frame_msg(struct mac_address *src, struct mac_address *dst, char *data, int data_len, int ack) {
 
 	msg = nlmsg_alloc();
 	if (!msg) {
@@ -40,10 +47,11 @@ int send_frame_msg(struct mac_address *receiver, struct mac_address *transmitter
 	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, genl_family_get_id(family), 0, NLM_F_REQUEST, HWSIM_C_FRAME, VERSION_NR);
 
 	int rc;
-	rc = nla_put(msg, HWSIM_A_ADDR_RECEIVER, sizeof(struct mac_address), receiver);
-	rc = nla_put(msg, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), transmitter);
+	rc = nla_put(msg, HWSIM_A_ADDR_RECEIVER, sizeof(struct mac_address), dst);
+	rc = nla_put(msg, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), src);
 	rc = nla_put_u32(msg, HWSIM_A_MSG_LEN, data_len);
 	rc = nla_put(msg, HWSIM_A_MSG, data_len, data);
+	rc = nla_put_u8(msg, HWSIM_A_ACK, ack);
 	if(rc!=0) {
 		printf("Error filling payload\n");
 	}
@@ -54,35 +62,67 @@ int send_frame_msg(struct mac_address *receiver, struct mac_address *transmitter
 	return 0;
 }
 
+/*
+ * Iterate all the radios and send a copy of the packet to each interface.
+ */
+
+int send_frame_to_radios(struct mac_address *src, char*data, int data_len) {
+
+	int i;
+	int ack = 0;
+	struct mac_address *dst;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)data;
+
+	for (i=0;i<size;i++) {
+		
+		dst =  get_mac_address(i);
+
+		if(memcmp(src,dst,sizeof(struct mac_address))==0){
+			continue;
+		}
+/*		
+		printf("SRC:%02X:%02X:%02X:%02X:%02X:%02X\n",src->addr[0],src->addr[1],src->addr[2],src->addr[3],src->addr[4],src->addr[5]);
+		printf("DST:%02X:%02X:%02X:%02X:%02X:%02X\n",dst->addr[0],dst->addr[1],dst->addr[2],dst->addr[3],dst->addr[4],dst->addr[5]);
+		printf("*********************************\n");
+*/
+		if (should_drop_frame(prob_matrix,src,dst)) {
+			dropped++;
+		} else {
+			send_frame_msg(src, dst, data, data_len,0);
+			accepted++;
+			/*if the mac_address in the hdr == to the mac_address we are sending*/
+			if(memcmp(dst,hdr->addr1,sizeof(struct mac_address))==0){ 
+				//printf("ACK\n");
+				ack++;
+			}
+		}
+			
+	}
+	/* By agreement a frame with same mac_addr in both attibutes will be considered a tx info packet*/
+	send_frame_msg(src, src, data, data_len, ack);
+	return 0;
+}
+
+
 static int process_messages_cb(struct nl_msg *msg, void *arg) {
      
 	struct nlattr *attrs[HWSIM_A_MAX+1];
-	//Saco el header de netlink (el 1º)
+	//netlink header
 	struct nlmsghdr *nlh = nlmsg_hdr(msg);
-	//Saco el genlmsghdr
+	//generic netlink header
 	struct genlmsghdr *gnlh = nlmsg_data(nlh);	
-
+	
 	if(gnlh->cmd == HWSIM_C_FRAME) {
-		// Parseo el mensaje para conseguir los attributos
+		// we get the attributes 
 		genlmsg_parse(nlh, 0, attrs, HWSIM_A_MAX, NULL);
-		if (attrs[HWSIM_A_ADDR_RECEIVER] && attrs[HWSIM_A_ADDR_TRANSMITTER]) {
-			struct mac_address *r = (struct mac_address*)nla_data(attrs[HWSIM_A_ADDR_RECEIVER]);
-			struct mac_address *t = (struct mac_address*)nla_data(attrs[HWSIM_A_ADDR_TRANSMITTER]);
-
-			/*printf("R:%02X:%02X:%02X:%02X:%02X:%02X\n",r->addr[0],r->addr[1],r->addr[2],r->addr[3],r->addr[4],r->addr[5]);
-			printf("T:%02X:%02X:%02X:%02X:%02X:%02X\n",t->addr[0],t->addr[1],t->addr[2],t->addr[3],t->addr[4],t->addr[5]);*/
+		if (attrs[HWSIM_A_ADDR_TRANSMITTER]) {
+			struct mac_address *src = (struct mac_address*)nla_data(attrs[HWSIM_A_ADDR_TRANSMITTER]);
 
 			int data_len = nla_get_u32(attrs[HWSIM_A_MSG_LEN]);
 			char* data = (char*)nla_data(attrs[HWSIM_A_MSG]);
 
-			if (should_drop_frame(prob_matrix,t,r)) {
-				//printf("DISCARDED\n");
-				dropped++;
-			} else {
-				//printf("ACCEPTED \n");
-				send_frame_msg(r, t, data, data_len);
-				accepted++;
-			}
+			send_frame_to_radios(src,data,data_len);
+
 			printf("\raccepted: %d dropped: %d TOTAL: %d", accepted, dropped, accepted+dropped);
 		}
 	}
@@ -145,25 +185,29 @@ int main(int argc, char* argv[]) {
 			"%s [num of mesh ifaces] [Ploss applied]\n",argv[0]);
 		exit(1);
 	}
-
-
-	int size = atoi(argv[1]);
+	
+	size = atoi(argv[1]);
 	double a_prob = atof(argv[2]);
 
 	prob_matrix = malloc(sizeof(double)*(size*size));
 
 	printf("%d MAC address registered\n",size);
 
+	/*Init the probability*/
 	init_probability(size);
 
+	/*Fill the matrix with a fixed probability*/
 	fill_prob_matrix((double*)prob_matrix,a_prob);
 	print_prob_matrix((double*)prob_matrix);
 
+	/*init netlink*/
 	init_netlink();
 
+	/*Send a register msg to the kernel*/
 	if (send_register_msg()==0)
 		printf("REGISTER SENT!\n");
 
+	/*We wait for incoming msg*/
 	while(1) {
 		nl_recvmsgs_default(sock);
 	}

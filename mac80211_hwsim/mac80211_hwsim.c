@@ -484,27 +484,26 @@ static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
 }
 
 
-static int hwsim_send_frame_nl(struct mac_address *receiver, struct mac_address *transmitter, struct sk_buff *my_skb, int _pid) {
+static int hwsim_frame_send_nl(struct mac_address *src, struct sk_buff *my_skb, int _pid) {
 
 	unsigned char *output_buff;
 	struct sk_buff *skb;
 	void *msg_head;
 	int rc;
 
-	if (!receiver || !transmitter || !my_skb || !_pid) {
+	if (!src || !my_skb || !_pid) {
 		printk(KERN_INFO"Problem with parameters at func: %s\n",__func__);
-		return -1;
+		goto out;
 	}
 
 	skb=genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0, HWSIM_C_FRAME);
 	if (msg_head == NULL) {
 		printk(KERN_INFO"Problem with msg_head\n");
-		return -1;
+		goto out;
 	}
 
-	rc = nla_put(skb, HWSIM_A_ADDR_RECEIVER, sizeof(struct mac_address), receiver);
-	rc = nla_put(skb, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), transmitter);
+	rc = nla_put(skb, HWSIM_A_ADDR_TRANSMITTER, sizeof(struct mac_address), src);
 	output_buff = kmalloc(my_skb->len,GFP_ATOMIC);
 	memcpy(output_buff, my_skb->data, my_skb->len);
 	rc = nla_put_u32(skb, HWSIM_A_MSG_LEN, my_skb->len);
@@ -512,7 +511,7 @@ static int hwsim_send_frame_nl(struct mac_address *receiver, struct mac_address 
 	
 	if (rc != 0) {
 		printk(KERN_INFO"Error filling msg payload\n");
-		return -1;
+		goto out;
 	}
 	
 	genlmsg_end(skb,msg_head);
@@ -523,11 +522,16 @@ static int hwsim_send_frame_nl(struct mac_address *receiver, struct mac_address 
 		write_lock(&pid_lock);
 		wmedium_pid = 0;
 		write_unlock(&pid_lock);	
-		return -1;
+		goto out;
 	}
 
 	kfree(output_buff);
 	return 0;
+	
+out:
+	printk("an error occured in hwsim_frame_send_nl:\n");
+	return -1;
+	
 }
 
 
@@ -544,6 +548,7 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 
 	if (data->idle) {
 		wiphy_debug(hw->wiphy, "Trying to TX when idle - reject\n");
+		dev_kfree_skb(skb);
 		return false;
 	}
 
@@ -553,6 +558,17 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 		_pid = wmedium_pid;
 	}
 	read_unlock(&pid_lock);
+
+	if (data->ps != PS_DISABLED)
+		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
+
+	/* wmediumd mode */
+	if (_pid !=0) {
+		hwsim_frame_send_nl((struct mac_address*)&data->addresses[1].addr,skb,_pid);
+		return true;
+	}
+	
+	/* NO wmediumd, normal mac80211_hwsim behaviour*/
 	
 	memset(&rx_status, 0, sizeof(rx_status));
 	/* TODO: set mactime */
@@ -561,10 +577,7 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	rx_status.rate_idx = info->control.rates[0].idx;
 	/* TODO: simulate real signal strength (and optional packet loss) */
 	rx_status.signal = data->power_level - 50;
-
-	if (data->ps != PS_DISABLED)
-		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
-
+	
 	/* release the skb's source info */
 	skb_orphan(skb);
 	skb_dst_drop(skb);
@@ -593,27 +606,28 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 
 		memcpy(IEEE80211_SKB_RXCB(nskb), &rx_status, sizeof(rx_status));
 		
-		if (_pid !=0) {
-			hwsim_send_frame_nl((struct mac_address*)&data2->addresses[1].addr,
-					(struct mac_address*)&data->addresses[1].addr,
-					nskb,_pid);
-		} else {
-			if (mac80211_hwsim_addr_match(data2, hdr->addr1)) {
-				ack = true;
-			}
-			ieee80211_rx_irqsafe(data2->hw, nskb);
+		if (mac80211_hwsim_addr_match(data2, hdr->addr1)) {
+			ack = true;
 		}
+		ieee80211_rx_irqsafe(data2->hw, nskb);
 	}
 	spin_unlock(&hwsim_radio_lock);
 
 	return ack;
 }
 
-
 static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
+	int _pid = 0;
+
+	/* Look for the wmediumd pid*/	
+	read_lock(&pid_lock);
+	if (wmedium_pid) {
+		_pid = wmedium_pid;
+	}
+	read_unlock(&pid_lock);
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 
@@ -623,7 +637,13 @@ static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 		return NETDEV_TX_OK;
 	}
 	
-	/* If we are in wmediumd mode, ack should be false*/
+	/* wmediumd mode*/
+	if (_pid !=0) {
+		mac80211_hwsim_tx_frame(hw, skb);
+		return NETDEV_TX_OK;
+	}
+
+	/* NO wmediumd, normal mac80211_hwsim behaviour*/
 	ack = mac80211_hwsim_tx_frame(hw, skb);
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
@@ -1318,39 +1338,35 @@ static int hwsim_fops_group_write(void *dat, u64 val)
 static int hwsim_frame_received_nl(struct sk_buff *skb_2, struct genl_info *info) {
 
 	struct ieee80211_hdr *hdr;
-	struct mac80211_hwsim_data *data, *data2;
+	struct mac80211_hwsim_data *data2;
+	struct ieee80211_rx_status rx_status;	
+	struct ieee80211_tx_info *txi;
 
-	bool ack = false;
 	bool _found = false;
-	
-	struct mac_address *r = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_RECEIVER]);
-	struct mac_address *t = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_TRANSMITTER]);
+	int ack = 0;
+
+	struct mac_address *dst = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_RECEIVER]);
+	struct mac_address *src = (struct mac_address*)nla_data(info->attrs[HWSIM_A_ADDR_TRANSMITTER]);
 	int frame_data_len = nla_get_u32(info->attrs[HWSIM_A_MSG_LEN]);
 	char* frame_data = (char*)nla_data(info->attrs[HWSIM_A_MSG]);
+	
 	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN,GFP_KERNEL); 
 
 	/*printk(KERN_DEBUG"RECEIVED A FRAME\n");*/
 	if (frame_data_len <= IEEE80211_MAX_DATA_LEN)
 		memcpy(skb_put(skb,frame_data_len),frame_data,frame_data_len);
 	else 
-		return -1;
+		goto out;
 
-	spin_lock(&hwsim_radio_lock);
-	list_for_each_entry(data, &hwsim_radios, list) {
-		if(memcmp(data->addresses[1].addr,r,sizeof(struct mac_address))) {
-			_found=true;
-			break;
-		}
-	}
-	spin_unlock(&hwsim_radio_lock);
-
-	if (!_found)
-		return -1;
-	_found = false;
-
+/*	printk(KERN_DEBUG"DST:%02X:%02X:%02X:%02X:%02X:%02X\n",dst->addr[0],dst->addr[1],dst->addr[2],dst->addr[3],dst->addr[4],dst->addr[5]);*/
+	
 	spin_lock(&hwsim_radio_lock);
 	list_for_each_entry(data2, &hwsim_radios, list) {
-		if(memcmp(data2->addresses[1].addr,t,sizeof(struct mac_address))) {
+/*		printk("DAT:%02X:%02X:%02X:%02X:%02X:%02X\n",
+ * 		data2->addresses[1].addr[0],data2->addresses[1].addr[1],data2->addresses[1].addr[2],data2->addresses[1].addr[3],
+ *		data2->addresses[1].addr[4],data2->addresses[1].addr[5]);
+ */
+		if(memcmp(data2->addresses[1].addr,dst,sizeof(struct mac_address))==0) {
 			_found=true;
 			break;
 		}
@@ -1358,32 +1374,67 @@ static int hwsim_frame_received_nl(struct sk_buff *skb_2, struct genl_info *info
 	spin_unlock(&hwsim_radio_lock);
 
 	if (!_found)
-		return -1;
+		goto out;
 
-	/* We get the ieee80211_hdr from the packet */
-	hdr = (struct ieee80211_hdr *)skb->data;
+	/* BY AGREEMENT with wmediumd, if src == dst, the packet contains TX info  */
 	
-	if(mac80211_hwsim_addr_match(data2, hdr->addr1)) {
-		ack = true;
-	/*	printk("ACK TRUE!\n"); */
-	}	
+	if (memcmp(src,dst,sizeof(struct mac_address))==0) {
+		printk(KERN_DEBUG"TX_INFO\n");
+		
+		/* get ACK info from gennl*/
+		ack = nla_get_u8(info->attrs[HWSIM_A_ACK]);
+		
+		/* now send TX status */
+		txi = IEEE80211_SKB_CB(skb);
+		
+		if (txi->control.vif)
+			hwsim_check_magic(txi->control.vif);
+		if (txi->control.sta)
+			hwsim_check_sta_magic(txi->control.sta);
 
-	ieee80211_rx_irqsafe(data2->hw,skb);
+		ieee80211_tx_info_clear_status(txi);
+/*		for (i=0; i < IEEE80211_TX_MAX_RATES; i++) {
+			txi->status.rates[i].idx = tx_status.rates[i].idx;
+			txi->status.rates[i].count = tx_status.rates[i].count;
+			txi->status.rates[i].flags = tx_status.rates[i].flags;
+		}
+		txi->status.ampdu_ack_len = tx_status.ampdu_ack_len;
+		txi->status.ampdu_ack_map = tx_status.ampdu_ack_map;
+		txi->status.ack_signal = tx_status.ack_signal;
+*/
+		if (!(txi->flags & IEEE80211_TX_CTL_NO_ACK) && ack)
+			txi->flags |= IEEE80211_TX_STAT_ACK;
 
-	if (ack && skb->len >=16) {
-		mac80211_hwsim_monitor_ack(data->hw, hdr->addr2);
+		if (ack && skb->len >= 16) {
+			hdr = (struct ieee80211_hdr *) skb->data;
+			mac80211_hwsim_monitor_ack(data2->hw, hdr->addr2);
+		}
+		ieee80211_tx_status_irqsafe(data2->hw, skb);
+
+	} else { /*A frame is received back from user space*/
+		printk(KERN_DEBUG"NORMAL FRAME\n");
+		memset(&rx_status, 0, sizeof(rx_status));
+		/* TODO: set mactime */
+		rx_status.freq = data2->channel->center_freq;
+		rx_status.band = data2->channel->band;
+		rx_status.rate_idx = 0;
+		/* TODO: simulate real signal strength (and optional packet loss) */
+		rx_status.signal = -50;
+		memcpy(IEEE80211_SKB_RXCB(skb), &rx_status, sizeof(rx_status));
+
+		ieee80211_rx_irqsafe(data2->hw,skb);
 	}
-
 	return 0;
+out:
+	printk("an error occured in hwsim_frame_received_nl:\n");
+	return -1;
 }
-
-
 
 
 static int hwsim_register_received_nl(struct sk_buff *skb_2, struct genl_info *info) {
 
 	if (info == NULL)
-        	goto out;
+		goto out;
 
 	write_lock(&pid_lock);
 	wmedium_pid = info->snd_pid;
@@ -1456,11 +1507,11 @@ static void hwsim_exit_netlink(void) {
         	printk(KERN_DEBUG"unregister ops: %i\n",ret);
         	return;
 	}
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[1]);
+/*	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[1]);
 	if(ret != 0){
         	printk(KERN_DEBUG"unregister ops: %i\n",ret);
         	return;
-	}
+	}*/
 	ret = genl_unregister_family(&hwsim_genl_family);
 	if(ret !=0){
 		printk(KERN_DEBUG "unregister family %i\n",ret);
@@ -1602,6 +1653,10 @@ static int __init init_mac80211_hwsim(void)
 		/* By default all radios are belonging to the first group */
 		data->group = 1;
 		mutex_init(&data->mutex);
+
+		/*Enable MRR*/
+		hw->max_rates = 4;
+		hw->max_rate_tries = 11;
 
 		/* Work to be done prior to ieee80211_register_hw() */
 		switch (regtest) {

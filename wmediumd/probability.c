@@ -31,6 +31,15 @@
 static int a_size = 0;
 static struct mac_address *indexer;
 
+
+struct mac_address * get_mac_address(int pos) {
+
+	void * ptr = indexer;
+	ptr = ptr + (sizeof(struct mac_address)*pos);
+
+	return ((pos >= a_size) ?  NULL : (struct mac_address*)ptr);
+}
+
 /**
  * 	Returns the position of the address in the array.
  * 	If the mac_address is not found returns -1
@@ -41,7 +50,6 @@ int find_pos_by_mac_address(struct mac_address *addr) {
 	int i=0;
 
 	void * ptr = indexer;
-
 	while(memcmp(ptr,addr,sizeof(struct mac_address)) && i < a_size)
 	{
 		struct mac_address *a = (struct mac_address*)ptr;

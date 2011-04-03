@@ -4,15 +4,18 @@ enum {
 	HWSIM_A_ADDR_TRANSMITTER,
 	HWSIM_A_MSG_LEN,
 	HWSIM_A_MSG,
+	HWSIM_A_ACK,
 	__HWSIM_A_MAX,
 };
 #define HWSIM_A_MAX (__HWSIM_A_MAX - 1)
+
 
 static struct nla_policy hwsim_genl_policy[HWSIM_A_MAX + 1] = {
 	[HWSIM_A_ADDR_RECEIVER] = { .type = NLA_UNSPEC, .len = 6*sizeof(u8) },
 	[HWSIM_A_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC, .len = 6*sizeof(u8) },
 	[HWSIM_A_MSG_LEN] = { .type = NLA_U32 },
 	[HWSIM_A_MSG] = { .type = NLA_STRING },
+	[HWSIM_A_ACK] = { .type = NLA_U8 },
 };
 
 #define VERSION_NR 1
