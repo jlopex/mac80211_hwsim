@@ -42,7 +42,7 @@ static int dropped = 0;
 static int acked = 0;
 
 /*
- * Send a tx_info frame to the kernel space.
+ *	Send a tx_info frame to the kernel space.
  */
 
 int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len, unsigned int flags, int signal, struct ieee80211_tx_rate *tx_attempts, void *cb) {
@@ -133,7 +133,7 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src, struct mac_addre
 	double prob_per_link = get_prob_per_link_with_rate_idx(prob_matrix,src,dst,rate_idx);
 	double random_double = generate_random_double();
 
-	if (random_double > prob_per_link) {
+	if (random_double < prob_per_link) {
 		dropped++;
 		return 0;
 	} else {

@@ -14,6 +14,8 @@
  * - RX filtering based on filter configuration (data->rx_filter)
  */
 
+#define CUSTOM_BUFFER_SIZE 48
+
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -510,14 +512,14 @@ static int hwsim_frame_send_nl(struct mac_address *src, struct sk_buff *my_skb, 
 
 	output_buff = kmalloc(my_skb->len,GFP_ATOMIC);
 	memcpy(output_buff, my_skb->data, my_skb->len);
-	rc = nla_put(skb, HWSIM_ATTR_MSG, my_skb->truesize, output_buff);
+	rc = nla_put(skb, HWSIM_ATTR_MSG, my_skb->len, output_buff);
 	if (rc != 0) {
 		printk(KERN_INFO"Error filling msg payload\n");
 		goto out;
 	}
 
 	/* We get a copy of the control buffer for this tx*/
-	rc = nla_put(skb, HWSIM_ATTR_CB_SKB, sizeof(char)*48, my_skb->cb);
+	rc = nla_put(skb, HWSIM_ATTR_CB_SKB, sizeof(char)*CUSTOM_BUFFER_SIZE, my_skb->cb);
 
 	txi = IEEE80211_SKB_CB(my_skb);
 
@@ -541,7 +543,9 @@ static int hwsim_frame_send_nl(struct mac_address *src, struct sk_buff *my_skb, 
 	return 0;
 
 out:
-	printk("an error occured in hwsim_frame_send_nl:\n");
+
+	kfree(output_buff);
+	printk("ERROR occured in %s\n",__func__);
 	return -1;
 
 }
@@ -1403,12 +1407,12 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2, struct genl_in
 	if (data2 == NULL)
 		goto out;
 
-	printk("uEEEEEEEEEEEEEEEEEEEEEEE TX_INFO STATUS\n");
+	printk(KERN_INFO"TX_INFO received\n");
 	/*Tx info received because the frame was acked on user space, so we get all the necessary info: tx attempts and skb control buffer*/
 
 	tx_attempts = (struct ieee80211_tx_rate*)nla_data(info->attrs[HWSIM_ATTR_TX_INFO]);
 	cb = (char*)nla_data(info->attrs[HWSIM_ATTR_CB_SKB]);
-	memcpy(skb->cb,cb,sizeof(char)*48);
+	memcpy(skb->cb,cb,sizeof(char)*CUSTOM_BUFFER_SIZE);
 
 	/* now send back TX status */
 	txi = IEEE80211_SKB_CB(skb);
@@ -1448,7 +1452,7 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2, struct genl_in
 
 out:
 	kfree_skb(skb);
-	printk("ERROR: occured in %s\n",__func__);
+	printk(KERN_DEBUG"ERROR: occured in %s\n",__func__);
 	return -1;
 
 }
@@ -1478,7 +1482,7 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2, struct genl_inf
 
 	/*A frame is received from user space*/
 
-	printk(KERN_DEBUG"NORMAL FRAME\n");
+	printk(KERN_INFO"CLONED FRAME received\n");
 	memset(&rx_status, 0, sizeof(rx_status));
 	/* TODO: set mactime */
 	rx_status.freq = data2->channel->center_freq;
@@ -1494,7 +1498,7 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2, struct genl_inf
 	return 0;
 out:
 	kfree_skb(skb);
-	printk("ERROR: occured in %s\n",__func__);
+	printk(KERN_DEBUG"ERROR: occured in %s\n",__func__);
 	return -1;
 }
 
@@ -1545,7 +1549,7 @@ static struct genl_ops hwsim_ops[] = {
 static int hwsim_init_netlink(void)
 {
 	int rc;
-	printk("initializing generic netlink\n");
+	printk(KERN_INFO"Initializing generic netlink\n");
 
 	rwlock_init(&pid_lock);
 
@@ -1580,7 +1584,7 @@ static int hwsim_init_netlink(void)
 static void hwsim_exit_netlink(void) {
 	int ret;
 
-	printk(KERN_DEBUG"Exiting Generic Netlink Module\n");
+	printk(KERN_DEBUG"Exiting generic netlink\n");
 	/*unregister the functions*/
 
 	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[0]);
