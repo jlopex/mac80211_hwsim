@@ -17,11 +17,24 @@
  *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef MAC_ADDRESS_H_
-#define MAC_ADDRESS_H_
+#ifndef NLCLIENT_H_
+#define NLCLIENT_H_
 
-struct mac_address {
-	unsigned char addr[6];
-};
+#define HWSIM_CMD_REGISTER 1
+#define HWSIM_CMD_FRAME 2
+#define HWSIM_CMD_TX_INFO_FRAME 3
 
-#endif /* MAC_ADDRESS_H_ */
+#define HWSIM_ATTR_ADDR_RECEIVER 1
+#define HWSIM_ATTR_ADDR_TRANSMITTER 2
+#define HWSIM_ATTR_MSG_LEN 3
+#define HWSIM_ATTR_MSG 4
+#define HWSIM_ATTR_FLAGS 5
+#define HWSIM_ATTR_RX_RATE 6
+#define HWSIM_ATTR_SIGNAL 7
+#define HWSIM_ATTR_TX_INFO 8
+#define HWSIM_ATTR_CB_SKB 9
+#define HWSIM_ATTR_MAX 9
+#define VERSION_NR 1
+
+
+#endif /* NLCLIENT_H_ */

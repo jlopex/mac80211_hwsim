@@ -17,11 +17,27 @@
  *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef MAC_ADDRESS_H_
-#define MAC_ADDRESS_H_
+#ifndef IEEE80211_H_
+#define IEEE80211_H_
 
-struct mac_address {
-	unsigned char addr[6];
+#define IEEE80211_MAX_TX_RATES 5
+#define IEEE80211_CB_SIZE 48
+
+struct ieee80211_hdr {
+        unsigned char frame_control[2];
+       	unsigned char duration_id[2];
+        unsigned char addr1[6];
+        unsigned char addr2[6];
+        unsigned char addr3[6];
+        unsigned char seq_ctrl[2];
+        unsigned char addr4[6];
 };
 
-#endif /* MAC_ADDRESS_H_ */
+struct ieee80211_tx_rate {
+	signed char idx;
+	unsigned char count;
+	unsigned char flags;
+
+};
+
+#endif /* IEEE80211 */
