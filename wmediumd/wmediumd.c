@@ -324,6 +324,11 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
+	if (size < 2) {
+		printf("The number of mesh ifaces must be at least 2\n");
+		exit(1);
+	}
+
 	prob_matrix = malloc(sizeof(double)*(size*size));
 
 	printf("%d MAC address registered\n",size);
