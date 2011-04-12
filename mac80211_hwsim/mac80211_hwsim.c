@@ -1,5 +1,5 @@
 /*
-  mac80211_hwsim - software simulator of 802.11 radio(s) for mac80211
+ * mac80211_hwsim - software simulator of 802.11 radio(s) for mac80211
  * Copyright (c) 2008, Jouni Malinen <j@w1.fi>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,7 +14,6 @@
  * - RX filtering based on filter configuration (data->rx_filter)
  */
 
-#define CUSTOM_BUFFER_SIZE 48
 
 #include <linux/list.h>
 #include <linux/slab.h>
@@ -28,7 +27,7 @@
 #include <linux/etherdevice.h>
 #include <linux/debugfs.h>
 #include <net/genetlink.h>
-#include "netlink.h"
+#include "mac80211_hwsim.h"
 
 MODULE_AUTHOR("Jouni Malinen");
 MODULE_DESCRIPTION("Software simulator of 802.11 radio(s) for mac80211");
@@ -531,12 +530,11 @@ static int hwsim_frame_send_nl(struct mac_address *src, struct sk_buff *my_skb, 
 	genlmsg_end(skb,msg_head);
 	rc = genlmsg_unicast(&init_net,skb,_pid);
 	if (rc !=0) {
-        	printk(KERN_INFO"Error sending frame msg to %d\n",_pid);
-        	printk(KERN_INFO"Switching to no wmediumd mode\n");
+        	printk(KERN_DEBUG"wmediumd not responding at PID:%d"
+			", switching to no wmediumd mode.\n",_pid);
 		write_lock(&pid_lock);
 		wmedium_pid = 0;
 		write_unlock(&pid_lock);
-		goto out;
 	}
 
 	kfree(output_buff);

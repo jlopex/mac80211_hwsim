@@ -199,7 +199,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data, int 
 				}
 
 				/* Try to send it to a radio and if the frame is destined to this radio tx_ok*/
-				if(send_frame_msg_apply_prob_and_rate(src, dst, data, data_len, round) &&
+				if(send_frame_msg_apply_prob_and_rate(src, dst, data, data_len, tx_attempts[round].idx) &&
 					memcmp(dst,hdr->addr1,sizeof(struct mac_address))==0) {
 						tx_ok = 1;
 				}
@@ -317,6 +317,12 @@ int main(int argc, char* argv[]) {
 
 	size = atoi(argv[1]);
 	double a_prob = atof(argv[2]);
+
+	if (a_prob < 0 || a_prob > 1) {
+		printf("Ploss applied must be a float value between 0 to 1 \n"
+			"\t For example, to apply a loss prob of 50%% -> 0.5 \n");
+		exit(1);
+	}
 
 	prob_matrix = malloc(sizeof(double)*(size*size));
 

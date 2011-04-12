@@ -25,11 +25,11 @@
  *							Column Index
  *							SRC MAC Address
  *
- *					[ -1.000000][  1.000000][  2.000000][  3.000000][  4.000000]
+ *				[ -1.000000][  1.000000][  2.000000][  3.000000][  4.000000]
  *	Row Index		[  5.000000][ -1.000000][  6.000000][  7.000000][  8.000000]
  *	DST MAC			[  9.000000][ 10.000000][ -1.000000][ 11.000000][ 12.000000]
  *	Address			[ 13.000000][ 14.000000][ 15.000000][ -1.000000][ 16.000000]
- *					[ 17.000000][ 18.000000][ 19.000000][ 20.000000][ -1.000000]
+ *				[ 17.000000][ 18.000000][ 19.000000][ 20.000000][ -1.000000]
  */
 
 
@@ -211,7 +211,8 @@ double get_prob_per_link_with_rate_idx(double *aMatrix,struct mac_address *src, 
 		prob_per_link = prob_per_link + (prob_per_link / 15)* rate_idx;
 	}
 
-	return prob_per_link;
+	/* If the probability for this rate is > 1 just return 1, if not return the probability*/
+	return ((prob_per_link > 1.0) ? 1.0 : prob_per_link);
 
 }
 
