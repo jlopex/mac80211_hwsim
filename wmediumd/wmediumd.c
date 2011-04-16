@@ -56,7 +56,7 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len, uns
 	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, genl_family_get_id(family), 0, NLM_F_REQUEST, HWSIM_CMD_TX_INFO_FRAME, VERSION_NR);
 
 	int rc;
-	rc = nla_put(msg, HWSIM_ATTR_ADDR_RECEIVER, sizeof(struct mac_address), dst);
+	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER, sizeof(struct mac_address), dst);
 	rc = nla_put_u32(msg, HWSIM_ATTR_MSG_LEN, data_len);
 	rc = nla_put(msg, HWSIM_ATTR_MSG, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
@@ -216,7 +216,11 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data, int 
 		/* if tx is done and acked a frame with the tx_info is sent to original radio iface*/
 		acked++;
 		int signal = get_signal_by_rate(tx_attempts[counter-1].idx);
+		/* Let's flag this frame as ACK'ed */
+		flags |= IEEE80211_TX_STAT_ACK;
 		send_tx_info_frame_nl(src,data,data_len,flags, signal,tx_attempts,cb);
+	} else {
+		send_tx_info_frame_nl(src,data,data_len,flags, 0, tx_attempts, cb);
 	}
 }
 
@@ -245,6 +249,15 @@ static int process_messages_cb(struct nl_msg *msg, void *arg) {
 			void *cb = nla_data(attrs[HWSIM_ATTR_CB_SKB]);
 
 			received++;
+
+/*			if((flags & IEEE80211_TX_CTL_REQ_TX_STATUS) == IEEE80211_TX_CTL_REQ_TX_STATUS)
+				printf("IEEE80211_TX_CTL_REQ_TX_STATUS is SET\n");
+			if((flags & IEEE80211_TX_CTL_NO_ACK) == IEEE80211_TX_CTL_NO_ACK)
+				printf("IEEE80211_TX_CTL_NO_ACK is SET\n");
+			else
+				printf("IEEE80211_TX_CTL_NO_ACK is !SET\n");
+*/
+
 			send_frames_to_radios_with_retries(src,data,data_len,flags,tx_rates,cb);
 			printf("\rreceived: %d tried: %d sent: %d acked: %d", received, dropped+sent, sent, acked);
 		}

@@ -20,6 +20,10 @@
 #ifndef NLCLIENT_H_
 #define NLCLIENT_H_
 
+static int IEEE80211_TX_CTL_REQ_TX_STATUS = 1;
+static int IEEE80211_TX_CTL_NO_ACK = 1 << 2;
+static int IEEE80211_TX_STAT_ACK = 1 << 9;
+
 #define HWSIM_CMD_REGISTER 1
 #define HWSIM_CMD_FRAME 2
 #define HWSIM_CMD_TX_INFO_FRAME 3
