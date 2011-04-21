@@ -494,8 +494,15 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 	int rc;
 
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
+	
+	if (skb == NULL) {
+		printk(KERN_DEBUG "mac80211_hwsim: problem allocating skb\n");
+		goto out;
+	}
+
 	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0,
 			       HWSIM_CMD_FRAME);
+	
 	if (msg_head == NULL) {
 		printk(KERN_DEBUG "mac80211_hwsim: problem with msg_head\n");
 		goto out;
@@ -503,16 +510,8 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 
 	rc = nla_put(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), src);
-
-	rc = nla_put_u32(skb, HWSIM_ATTR_MSG_LEN, my_skb->len);
-
-	rc = nla_put(skb, HWSIM_ATTR_MSG, my_skb->len, my_skb->data);
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: "
-		       "error filling msg payload\n");
-		goto out;
-	}
-
+	/* We get the skb->data */
+	rc = nla_put(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
 	/* We get a copy of the control buffer for this tx*/
 	rc = nla_put(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
 		     my_skb->cb);
@@ -526,6 +525,12 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 	rc = nla_put(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
 		     txi->control.rates);
+
+	if (rc != 0) {
+		printk(KERN_DEBUG "mac80211_hwsim: "
+		       "error filling msg payload\n");
+		goto out;
+	}
 
 	genlmsg_end(skb, msg_head);
 	rc = genlmsg_unicast(&init_net, skb, _pid);
@@ -563,7 +568,8 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	/* wmediumd mode */
 	if (atomic_read(&wmediumd_pid)) {
 		hwsim_frame_send_nl((struct mac_address *)
-				    &data->addresses[1].addr, skb, atomic_read(&wmediumd_pid));
+			&data->addresses[1].addr, skb,
+			atomic_read(&wmediumd_pid));
 		return true;
 	}
 
@@ -1367,12 +1373,14 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 
 	struct mac_address *dst = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
-	int frame_data_len = nla_get_u32(info->attrs[HWSIM_ATTR_MSG_LEN]);
-	char *frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_MSG]);
+	int frame_data_len = nla_len(info->attrs[HWSIM_ATTR_FRAME]);
+	char *frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
 	int flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
 
 	/* Allocate new skb here */
 	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN, GFP_KERNEL);
+	if (skb == NULL)
+		goto out;
 
 	if (frame_data_len <= IEEE80211_MAX_DATA_LEN) {
 		/* Copy the data */
@@ -1386,13 +1394,27 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	if (data2 == NULL)
 		goto out;
 
-	printk(KERN_DEBUG "mac80211_hwsim: TX_INFO received\n");
-
-	/*Tx info received because the frame was acked on user space,
+	/*Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buffer*/
 
 	tx_attempts = (struct ieee80211_tx_rate *)nla_data(
 		       info->attrs[HWSIM_ATTR_TX_INFO]);
+
+	if (tx_attempts == NULL)
+	{
+		goto out;
+	}
+
+	/* ieee80211_tx_status() does not dereference anything from the
+	 ieee80211_tx_info structure included in this cb, so it is safe
+	 to get whatever we get from userspace and copy it here. */
+
+	/* check size of received custom buffer */
+	if (nla_len(info->attrs[HWSIM_ATTR_CB_SKB]) != sizeof(skb->cb))
+	{
+		printk(KERN_DEBUG "mac80211_hwsim: not valid cb received\n");
+		goto out;
+	}
 
 	/* ieee80211_tx_status() does not dereference anything from the
 	 ieee80211_tx_info structure included in this cb, so it is safe
@@ -1417,11 +1439,6 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 		txi->status.rates[i].count = tx_attempts[i].count;
 		txi->status.rates[i].flags = tx_attempts[i].flags;
 	}
-
-	/* unknown values that must be filled in:
-		txi->status.ampdu_ack_len = ¿?¿¿?¿?¿;
-		txi->status.ampdu_ack_map = ¿?¿?;
-	*/
 
 	txi->status.ack_signal = nla_get_u32(info->attrs[HWSIM_ATTR_SIGNAL]);
 
@@ -1451,12 +1468,14 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 
 	struct mac_address *dst = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_RECEIVER]);
-
-	int frame_data_len = nla_get_u32(info->attrs[HWSIM_ATTR_MSG_LEN]);
-	char* frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_MSG]);
+	
+	int frame_data_len = nla_len(info->attrs[HWSIM_ATTR_FRAME]);
+	char* frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
 
 	/* Allocate new skb here */
 	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN, GFP_KERNEL);
+	if (skb == NULL)
+		goto out;
 
 	if (frame_data_len <= IEEE80211_MAX_DATA_LEN) {
 		/* Copy the data */
@@ -1471,9 +1490,7 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 		goto out;
 
 	/*A frame is received from user space*/
-	printk(KERN_DEBUG "mac80211_hwsim: CLONED FRAME received\n");
 	memset(&rx_status, 0, sizeof(rx_status));
-	/* TODO: set mactime */
 	rx_status.freq = data2->channel->center_freq;
 	rx_status.band = data2->channel->band;
 	rx_status.rate_idx = nla_get_u32(info->attrs[HWSIM_ATTR_RX_RATE]);

@@ -57,8 +57,7 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len, uns
 
 	int rc;
 	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER, sizeof(struct mac_address), dst);
-	rc = nla_put_u32(msg, HWSIM_ATTR_MSG_LEN, data_len);
-	rc = nla_put(msg, HWSIM_ATTR_MSG, data_len, data);
+	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
 	rc = nla_put(msg, HWSIM_ATTR_TX_INFO, IEEE80211_MAX_TX_RATES*sizeof(struct ieee80211_tx_rate),tx_attempts);
@@ -95,8 +94,7 @@ int send_cloned_frame_msg(struct mac_address *dst, char *data, int data_len, int
 
 	int rc;
 	rc = nla_put(msg, HWSIM_ATTR_ADDR_RECEIVER, sizeof(struct mac_address), dst);
-	rc = nla_put_u32(msg, HWSIM_ATTR_MSG_LEN, data_len);
-	rc = nla_put(msg, HWSIM_ATTR_MSG, data_len, data);
+	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_RX_RATE, rate_idx);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
 
@@ -242,8 +240,8 @@ static int process_messages_cb(struct nl_msg *msg, void *arg) {
 		if (attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) {
 			struct mac_address *src = (struct mac_address*)nla_data(attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
 
-			unsigned int data_len = nla_get_u32(attrs[HWSIM_ATTR_MSG_LEN]);
-			char* data = (char*)nla_data(attrs[HWSIM_ATTR_MSG]);
+			unsigned int data_len = nla_len(attrs[HWSIM_ATTR_FRAME]);
+			char* data = (char*)nla_data(attrs[HWSIM_ATTR_FRAME]);
 			unsigned int flags = nla_get_u32(attrs[HWSIM_ATTR_FLAGS]);
 			struct ieee80211_tx_rate *tx_rates = (struct ieee80211_tx_rate*)nla_data(attrs[HWSIM_ATTR_TX_INFO]);
 			void *cb = nla_data(attrs[HWSIM_ATTR_CB_SKB]);

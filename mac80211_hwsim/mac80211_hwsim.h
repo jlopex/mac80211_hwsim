@@ -40,13 +40,13 @@
  *	frames by any mac80211_hwsim radio device.
  * @HWSIM_CMD_FRAME: send/receive a broadcasted frame from/to kernel/user
  * space, uses:
- * 	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_ADDR_RECEIVER,
- * 	%HWSIM_ATTR_MSG, %HWSIM_ATTR_MSG_LEN, %HWSIM_ATTR_FLAGS,
- * 	%HWSIM_ATTR_RX_RATE, %HWSIM_ATTR_SIGNAL, %HWSIM_ATTR_CB_SKB
+ *	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_ADDR_RECEIVER,
+ *	%HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS, %HWSIM_ATTR_RX_RATE, 
+ *	%HWSIM_ATTR_SIGNAL, %HWSIM_ATTR_CB_SKB
  * @HWSIM_CMD_TX_INFO_FRAME: Transmission info report from user space to
  * kernel, uses:
- * 	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_MSG, %HWSIM_ATTR_MSG_LEN,
- * 	%HWSIM_ATTR_FLAGS, %HWSIM_ATTR_TX_INFO, %HWSIM_ATTR_SIGNAL
+ *	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS, 
+ *	%HWSIM_ATTR_TX_INFO, %HWSIM_ATTR_SIGNAL
  * @__HWSIM_CMD_MAX: enum limit
  */
 enum {
@@ -67,8 +67,7 @@ enum {
  *	the frame is broadcasted to
  * @HWSIM_ATTR_ADDR_TRANSMITTER: MAC address of the radio device that
  *	the frame was broadcasted from
- * @HWSIM_ATTR_MSG_LEN: Length of the broadcasted frame
- * @HWSIM_ATTR_MSG: Data array
+ * @HWSIM_ATTR_FRAME: Data array
  * @HWSIM_ATTR_FLAGS: mac80211 transmission flags, used to process
 	properly the frame at user space
  * @HWSIM_ATTR_RX_RATE: estimated rx rate index for this frame at user
@@ -85,8 +84,7 @@ enum {
 	HWSIM_ATTR_UNSPEC,
 	HWSIM_ATTR_ADDR_RECEIVER,
 	HWSIM_ATTR_ADDR_TRANSMITTER,
-	HWSIM_ATTR_MSG_LEN,
-	HWSIM_ATTR_MSG,
+	HWSIM_ATTR_FRAME,
 	HWSIM_ATTR_FLAGS,
 	HWSIM_ATTR_RX_RATE,
 	HWSIM_ATTR_SIGNAL,
@@ -101,15 +99,15 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 				       .len = 6*sizeof(u8) },
 	[HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
 					  .len = 6*sizeof(u8) },
-	[HWSIM_ATTR_MSG_LEN] = { .type = NLA_U32 },
-	[HWSIM_ATTR_MSG] = { .type = NLA_STRING },
+	[HWSIM_ATTR_FRAME] = { .type = NLA_BINARY, 
+			       .len = IEEE80211_MAX_DATA_LEN },
 	[HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
-	[HWSIM_ATTR_RX_RATE] = { .type = NLA_U32},
+	[HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
 	[HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
 	[HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
 				 .len = IEEE80211_TX_MAX_RATES*sizeof(
 					struct ieee80211_tx_rate)},
-	[HWSIM_ATTR_CB_SKB] = { .type = NLA_UNSPEC, .len = 48*sizeof(char) },
+	[HWSIM_ATTR_CB_SKB] = { .type = NLA_BINARY, .len = 48*sizeof(char) },
 };
 
 #define VERSION_NR 1
