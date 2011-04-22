@@ -21,15 +21,21 @@
 #ifndef PROBABILITY_H_
 #define PROBABILITY_H_
 
+#define MATRIX_PROB(MATRIX,LIMITS,X,Y,Z) (MATRIX)[((X)+(Y)*(LIMITS))+((LIMITS)*(LIMITS)*(Z))]
+
 #include "mac_address.h"
 
-void init_probability(int size);
-struct mac_address * get_mac_address(int pos);
-void print_prob_matrix (double *aMatrix);
+void put_mac_address(struct mac_address addr, int pos);
+struct mac_address *get_mac_address(int pos);
+void print_mac_address_array();
+
 void fill_prob_matrix(double *aMatrix,double aValue);
-int should_drop_frame(double *aMatrix,struct mac_address *src, struct mac_address *dst);
+void print_prob_matrix (double *aMatrix);
+
 double generate_random_double();
-double get_prob_per_link_with_rate_idx(double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx);
+double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx);
+
+double * init_probability(int size);
 
 
 

@@ -22,6 +22,7 @@
 #include <netlink/genl/ctrl.h>
 #include <netlink/genl/family.h>
 #include <stdint.h>
+#include <libconfig.h>
 
 #include "wmediumd.h"
 #include "probability.h"
@@ -40,6 +41,16 @@ static int received = 0;
 static int sent = 0;
 static int dropped = 0;
 static int acked = 0;
+
+
+/*
+ * 	Generates a random double value
+ */
+
+double generate_random_double() {
+
+	return rand()/((double)RAND_MAX+1);
+}
 
 /*
  *	Send a tx_info frame to the kernel space.
@@ -60,7 +71,7 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len, uns
 	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
-	rc = nla_put(msg, HWSIM_ATTR_TX_INFO, IEEE80211_MAX_TX_RATES*sizeof(struct ieee80211_tx_rate),tx_attempts);
+	rc = nla_put(msg, HWSIM_ATTR_TX_INFO, IEEE80211_MAX_RATES_PER_TX*sizeof(struct ieee80211_tx_rate),tx_attempts);
 	rc = nla_put(msg, HWSIM_ATTR_CB_SKB, IEEE80211_CB_SIZE*sizeof(char), cb);
 
 	if(rc!=0) {
@@ -118,7 +129,9 @@ out:
 
 int get_signal_by_rate(int rate_idx) {
 	const int rate2signal [] = { -80,-77,-74,-71,-69,-66,-64,-62,-59,-56,-53,-50 };
-	return rate2signal[rate_idx];
+	if (rate_idx >= 0 || rate_idx < IEEE80211_AVAILABLE_RATES)
+		return rate2signal[rate_idx];
+	return 0;
 }
 
 /*
@@ -128,13 +141,15 @@ int get_signal_by_rate(int rate_idx) {
 int send_frame_msg_apply_prob_and_rate(struct mac_address *src, struct mac_address *dst, char *data, int data_len, int rate_idx) {
 
 	/* At higher rates higher loss probability*/
-	double prob_per_link = get_prob_per_link_with_rate_idx(prob_matrix,src,dst,rate_idx);
+	double prob_per_link = find_prob_by_addrs_and_rate(prob_matrix,src,dst,rate_idx);
 	double random_double = generate_random_double();
 
 	if (random_double < prob_per_link) {
 		dropped++;
 		return 0;
 	} else {
+
+		//printf("RATE_IDX %d, PROB_PER_LINK %f. RND %f\n",rate_idx,prob_per_link,random_double);
 
 		/*received signal level*/
 		int signal = get_signal_by_rate(rate_idx);
@@ -144,7 +159,6 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src, struct mac_addre
 		sent++;
 		return 1;
 	}
-
 }
 
 /*
@@ -154,7 +168,7 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src, struct mac_addre
 void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate) {
 	int i;
 	/* set up all unused rates to be -1 */
-	for (i=0; i < IEEE80211_MAX_TX_RATES; i++) {
+	for (i=0; i < IEEE80211_MAX_RATES_PER_TX; i++) {
         	tx_rate[i].idx = -1;
 		tx_rate[i].count = 0;
 	}
@@ -169,7 +183,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data, int 
 
 	struct mac_address *dst;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)data;
-	struct ieee80211_tx_rate tx_attempts[IEEE80211_MAX_TX_RATES];
+	struct ieee80211_tx_rate tx_attempts[IEEE80211_MAX_RATES_PER_TX];
 
 	int round = 0, tx_ok = 0, counter, i;
 
@@ -213,7 +227,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data, int 
 	if (tx_ok) {
 		/* if tx is done and acked a frame with the tx_info is sent to original radio iface*/
 		acked++;
-		int signal = get_signal_by_rate(tx_attempts[counter-1].idx);
+		int signal = get_signal_by_rate(tx_attempts[round-1].idx);
 		/* Let's flag this frame as ACK'ed */
 		flags |= IEEE80211_TX_STAT_ACK;
 		send_tx_info_frame_nl(src,data,data_len,flags, signal,tx_attempts,cb);
@@ -316,40 +330,120 @@ void init_netlink() {
 
 }
 
+int load_config(const char* file) {
+
+	config_t cfg, *cf;
+    const config_setting_t *ids, *prob_list, *mat_array;
+    int count_ids, rates_prob, i, j;
+    long int count_value, rates_value;
+
+    /*initialize the config file*/
+    cf = &cfg;
+    config_init(cf);
+
+    /*read the file*/
+    if (!config_read_file(cf, file)) {
+        fprintf(stderr, "%d - %s\n",
+            config_error_line(cf),
+            config_error_text(cf));
+        config_destroy(cf);
+        return(EXIT_FAILURE);
+    }
+
+    /*let's parse the values*/
+    config_lookup_int(cf, "ifaces.count", &count_value);
+    ids = config_lookup(cf, "ifaces.ids");
+    count_ids = config_setting_length(ids);
+
+    /*cross check*/
+    if (count_value != count_ids) {
+    	printf("Error on ifaces.count");
+    	return(EXIT_FAILURE);
+    }
+
+    printf("#_if = %d\n",count_ids);
+    size = count_ids;
+
+    prob_matrix = init_probability(size);
+
+
+    for (i = 0; i < count_ids; i++) {
+    	const char *str =  config_setting_get_string_elem(ids, i);
+    	put_mac_address(string_to_mac_address(str),i);
+    }
+
+    print_mac_address_array();
+
+    config_lookup_int(cf, "prob.rates", &rates_value);
+    prob_list = config_lookup(cf,"prob.matrix_list");
+
+    /*Get rates*/
+    rates_prob = config_setting_length(prob_list);
+
+    /*Some checks*/
+    if(!config_setting_is_list(prob_list)
+    		&& rates_prob != rates_value) {
+    	printf("Error on prob_list");
+    	return(EXIT_FAILURE);
+    }
+
+    /*Iterate all matrix arrays*/
+    for (i=0; i < rates_prob ; i++) {
+    	int x = 0, y = 0;
+    	mat_array = config_setting_get_elem(prob_list,i);
+    	if (config_setting_length(mat_array) != count_ids*count_ids) {
+    		return(EXIT_FAILURE);
+    	}
+    	/*Iterate all values on matrix array*/
+    	for (j=0; j < config_setting_length(mat_array); j++) {
+    		MATRIX_PROB(prob_matrix,size,x,y,i) =
+    				config_setting_get_float_elem(mat_array,j);
+    		x++;
+    		if (j%count_ids) {
+    			y++;
+    			x=0;
+    		}
+    	}
+    }
+
+    config_destroy(cf);
+    return (EXIT_SUCCESS);
+}
 
 
 int main(int argc, char* argv[]) {
 
-	if(argc!=3) {
-		printf("Missing arguments.\n"
-			"%s [num of mesh ifaces] [Ploss applied]\n",argv[0]);
-		exit(1);
-	}
+	load_config("wmediumd.cfg");
 
-	size = atoi(argv[1]);
-	double a_prob = atof(argv[2]);
-
-	if (a_prob < 0 || a_prob > 1) {
-		printf("Ploss applied must be a float value between 0 to 1 \n"
-			"\t For example, to apply a loss prob of 50%% -> 0.5 \n");
-		exit(1);
-	}
-
-	if (size < 2) {
-		printf("The number of mesh ifaces must be at least 2\n");
-		exit(1);
-	}
-
-	prob_matrix = malloc(sizeof(double)*(size*size));
-
-	printf("%d MAC address registered\n",size);
-
-	/*Init the probability*/
-	init_probability(size);
-
-	/*Fill the matrix with a fixed probability*/
-	fill_prob_matrix((double*)prob_matrix,a_prob);
-	print_prob_matrix((double*)prob_matrix);
+//	if(argc!=3) {
+//		printf("Missing arguments.\n"
+//			"%s [num of mesh ifaces] [Ploss applied]\n",argv[0]);
+//		exit(1);
+//	}
+//
+//	size = atoi(argv[1]);
+//	double a_prob = atof(argv[2]);
+//
+//	if (a_prob < 0 || a_prob > 1) {
+//		printf("Ploss applied must be a float value between 0 to 1 \n"
+//			"\t For example, to apply a loss prob of 50%% -> 0.5 \n");
+//		exit(1);
+//	}
+//
+//	if (size < 2) {
+//		printf("The number of mesh ifaces must be at least 2\n");
+//		exit(1);
+//	}
+//
+//	printf("%d MAC address registered\n",size);
+//
+//	/*Init the probability*/
+//	prob_matrix = init_probability(size);
+//
+//
+//	/*Fill the matrix with a fixed probability*/
+//	fill_prob_matrix(prob_matrix,a_prob);
+	print_prob_matrix(prob_matrix);
 
 	/*init netlink*/
 	init_netlink();

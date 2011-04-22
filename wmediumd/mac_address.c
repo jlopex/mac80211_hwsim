@@ -17,33 +17,23 @@
  *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef IEEE80211_H_
-#define IEEE80211_H_
+#include <stdio.h>
+#include "mac_address.h"
 
-#define IEEE80211_TX_CTL_REQ_TX_STATUS 1
-#define IEEE80211_TX_CTL_NO_ACK        (1 << 2)
-#define IEEE80211_TX_STAT_ACK          (1 << 9)
+struct mac_address string_to_mac_address(const char* str)
+{
+	struct mac_address mac;
+	int a[6];
 
+	sscanf(str, "%x:%x:%x:%x:%x:%x", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
 
-#define IEEE80211_AVAILABLE_RATES 12
-#define IEEE80211_MAX_RATES_PER_TX 5
-#define IEEE80211_CB_SIZE 48
+	mac.addr[0] = a[0];
+	mac.addr[1] = a[1];
+	mac.addr[2] = a[2];
+	mac.addr[3] = a[3];
+	mac.addr[4] = a[4];
+	mac.addr[5] = a[5];
 
-struct ieee80211_hdr {
-        unsigned char frame_control[2];
-       	unsigned char duration_id[2];
-        unsigned char addr1[6];
-        unsigned char addr2[6];
-        unsigned char addr3[6];
-        unsigned char seq_ctrl[2];
-        unsigned char addr4[6];
-};
+	return mac;
+}
 
-struct ieee80211_tx_rate {
-	signed char idx;
-	unsigned char count;
-	unsigned char flags;
-
-};
-
-#endif /* IEEE80211 */

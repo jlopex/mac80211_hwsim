@@ -17,32 +17,28 @@
  *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-/*
- *
- *	Probability is saved in a probability matrix where columns are indexed as shown in the diagra
- *
- *
- *							Column Index
- *							SRC MAC Address
- *
- *				[ -1.000000][  1.000000][  2.000000][  3.000000][  4.000000]
- *	Row Index		[  5.000000][ -1.000000][  6.000000][  7.000000][  8.000000]
- *	DST MAC			[  9.000000][ 10.000000][ -1.000000][ 11.000000][ 12.000000]
- *	Address			[ 13.000000][ 14.000000][ 15.000000][ -1.000000][ 16.000000]
- *				[ 17.000000][ 18.000000][ 19.000000][ 20.000000][ -1.000000]
- */
-
-
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "probability.h"
+#include "ieee80211.h"
 
-static int a_size = 0;
+static int array_size = 0;
 static struct mac_address *indexer;
+
+
+void put_mac_address(struct mac_address addr, int pos)
+{
+	int i;
+	void *ptr = indexer;
+
+ 	for (i=0; i < pos ; i++) {
+ 		ptr = ptr + sizeof(struct mac_address);
+ 	}
+ 	memcpy(ptr, &addr, sizeof(struct mac_address));
+}
 
 
 /*
@@ -54,7 +50,7 @@ struct mac_address * get_mac_address(int pos) {
 	void * ptr = indexer;
 	ptr = ptr + (sizeof(struct mac_address)*pos);
 
-	return ((pos >= a_size) ?  NULL : (struct mac_address*)ptr);
+	return ((pos >= array_size) ?  NULL : (struct mac_address*)ptr);
 }
 
 /*
@@ -67,13 +63,13 @@ int find_pos_by_mac_address(struct mac_address *addr) {
 	int i=0;
 
 	void * ptr = indexer;
-	while(memcmp(ptr,addr,sizeof(struct mac_address)) && i < a_size)
+	while(memcmp(ptr,addr,sizeof(struct mac_address)) && i < array_size)
 	{
 		i++;
 		ptr = ptr + sizeof(struct mac_address);
 	}
 
-	return ((i >= a_size) ?  -1 :  i);
+	return ((i >= array_size) ?  -1 :  i);
 }
 
 /*
@@ -85,7 +81,7 @@ void print_mac_address_array() {
 	int i=0;
 	void * ptr = indexer;
 
-	while (i < a_size) {
+	while (i < array_size) {
 		struct mac_address *a = malloc(sizeof(struct mac_address));
 		memcpy(a,ptr,sizeof(struct mac_address));
 		printf("A[%d]:%02X:%02X:%02X:%02X:%02X:%02X\n",i,a->addr[0],a->addr[1],a->addr[2],a->addr[3],a->addr[4],a->addr[5]);
@@ -99,18 +95,21 @@ void print_mac_address_array() {
  */
 
 void fill_prob_matrix(double *aMatrix,double aValue) {
-	int i,j,c=0;
+	int i =0 , j=0 , k=0;
 
-	for (i = 0 ; i < a_size*a_size ; i=i+a_size ) {
-		for (j = 0 ; j < a_size ; j++)
-		{
-			if (j==c) {
-				aMatrix[j+i]=-1;
-			} else {
-				aMatrix[j+i]=aValue;
+
+	for (k=0; k < IEEE80211_AVAILABLE_RATES; k++) {
+		for (i = 0 ; i < array_size  ; i++ ) {
+			for (j = 0; j < array_size; j++) {
+				if (i==j)
+					MATRIX_PROB(aMatrix,array_size,i,j,k)=-1;
+				else {
+					double prob_per_link = aValue + (aValue / 15) * k;
+					prob_per_link = prob_per_link > 1.0 ? 1.0 : prob_per_link;
+					MATRIX_PROB(aMatrix,array_size,i,j,k)=prob_per_link;
+				}
 			}
 		}
-		c++;
 	}
 }
 
@@ -120,133 +119,75 @@ void fill_prob_matrix(double *aMatrix,double aValue) {
 
 void print_prob_matrix (double *aMatrix) {
 
-	int i,j;
+	int i,j,k;
 
-	for (i = 0 ; i < a_size*a_size; i=i+a_size) {
-		for (j = 0 ; j < a_size ; j++)
-		{
-			int pos = j+i;
-			printf("[%10f]",aMatrix[pos]);
+	for (k=0; k < IEEE80211_AVAILABLE_RATES; k++) {
+		for (i=0; i < array_size ; i++) {
+			for (j=0; j < array_size; j++) {
+				printf("[%10f]",MATRIX_PROB(aMatrix,array_size,i,j,k));
+			}
+			printf("\n");
 		}
-		printf("\n");
+		printf("Matrix rate = %d\n",k);
 	}
 }
 
 /*
- *	Returns the probability for a given matrix position
- */
-
-double find_prob_by_pos (double *aMatrix, int column, int row) {
-
-	return aMatrix[row+(column*a_size)];
-}
-
-/*
- * 	Returns loss probability for a desired link.
+ *	Returns the loss probability for a given radio link, and rate
  * 	If an error occurs returns -1;
  */
 
-double find_prob_by_addrs (double *aMatrix,struct mac_address *src, struct mac_address *dst) {
+double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx) {
 
-	int col = find_pos_by_mac_address(src);
-	int row = find_pos_by_mac_address(dst);
+	int x = find_pos_by_mac_address(src);
+	int y = find_pos_by_mac_address(dst);
 
-	if (col == -1 || row ==-1)
+	if (x == -1 || y ==-1)
 		return -1;
-	return find_prob_by_pos(aMatrix,col,row);
-}
-
-/*
- * 	Generates a random double value
- */
-
-double generate_random_double() {
-
-	return rand()/((double)RAND_MAX+1);
-}
-
-/*
- *  Function to apply the loss probability to the packet
- * 	returns 1 if the frame should be dropped, 0 if not
- *  In case of an unknown link, the frame wont be dropped
- */
-
-int should_drop_frame(double *aMatrix,struct mac_address *src, struct mac_address *dst) {
-
-	double prob_per_link = find_prob_by_addrs(aMatrix,src,dst);
-	double random_double = generate_random_double();
-
-	if (prob_per_link==-1)
-	{
-		printf("ERROR: unknown link!\n");
-		return 0;
-	}
-
-	if (random_double > prob_per_link)
-		return 0;
-	return 1;
-
+	return MATRIX_PROB(aMatrix,array_size,x,y,rate_idx);
 }
 
 
-// TODO Do it nicer, use an array of probabilities for each rate index
 
-/*
- *	Simple modification in order to increase the loss probability with "higher" rates
- */
 
-double get_prob_per_link_with_rate_idx(double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx) {
-
-	double prob_per_link = find_prob_by_addrs(aMatrix,src,dst);
-
-	if (prob_per_link==-1)
-	{
-		printf("ERROR: unknown link!\n");
-		return -1;
-	}
-
-	// TODO do it nice!!! This is just a test to simulate higher losses at higher rates
-
-	if (rate_idx > 0) {
-		prob_per_link = prob_per_link + (prob_per_link / 15)* rate_idx;
-	}
-
-	/* If the probability for this rate is > 1 just return 1, if not return the probability*/
-	return ((prob_per_link > 1.0) ? 1.0 : prob_per_link);
-
-}
 
 /*
  *	Init all the probability data
+ *	Returns a pointer to the probability matrix
  */
 
-void init_probability(int size) {
+double * init_probability(int size) {
 
-	int i;
-	a_size = size;
-	indexer = malloc(sizeof(struct mac_address)*a_size);
- 	void *ptr = indexer;
+//	int i;
+	array_size = size;
+	indexer = malloc(sizeof(struct mac_address)*array_size);
+// 	void *ptr = indexer;
 
 	if (indexer==NULL) {
 		printf("Problem allocating vector");
 		exit(1);
 	}
 
-	/* Fill the mac_addr array as mac80211_hwsim does */
-	struct mac_address a_addr;
-	a_addr.addr[0] = 0x42;
-	a_addr.addr[1] = 0x00;
-	a_addr.addr[2] = 0x00;
-	a_addr.addr[3] = 0x00;
-	a_addr.addr[5] = 0x00;
-
- 	for (i=0; i < a_size ; i++) {
- 		a_addr.addr[4] = i;
- 		memcpy(ptr, &a_addr, sizeof(struct mac_address));
- 		ptr = ptr + sizeof(struct mac_address);
- 	}
-
- 	print_mac_address_array();
+//	/* Fill the mac_addr array as mac80211_hwsim does */
+//	struct mac_address a_addr;
+//	a_addr.addr[0] = 0x42;
+//	a_addr.addr[1] = 0x00;
+//	a_addr.addr[2] = 0x00;
+//	a_addr.addr[3] = 0x00;
+//	a_addr.addr[5] = 0x00;
+//
+// 	for (i=0; i < array_size ; i++) {
+// 		a_addr.addr[4] = i;
+// 		memcpy(ptr, &a_addr, sizeof(struct mac_address));
+// 		ptr = ptr + sizeof(struct mac_address);
+// 	}
+//
+// 	print_mac_address_array();
+ 	/*Let's create the matrix */
+ 	double * mat = malloc(sizeof(double)*(size*size)*IEEE80211_AVAILABLE_RATES);
+ 	/* Zero-it */
+ 	memset(mat,0,sizeof(double)*(size*size)*IEEE80211_AVAILABLE_RATES);
+ 	return mat;
 
 }
 

@@ -7,7 +7,7 @@ wmediumd/ 	-> User space application to apply loss probability per link.
 Dependencies:
 
 [rawsocket] -> libpthread 
-[wmediumd]  -> libnl 2.0
+[wmediumd]  -> libnl 2.0, libconfig
 
 ***Compilation of applications***
 
