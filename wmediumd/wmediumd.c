@@ -330,84 +330,88 @@ void init_netlink() {
 
 }
 
-int load_config(const char* file) {
+int write_config(const char *file) {
+	return (EXIT_SUCCESS);
+}
+
+int load_config(const char *file) {
 
 	config_t cfg, *cf;
-    const config_setting_t *ids, *prob_list, *mat_array;
-    int count_ids, rates_prob, i, j;
-    long int count_value, rates_value;
+	const config_setting_t *ids, *prob_list, *mat_array;
+	int count_ids, rates_prob, i, j;
+	long int count_value, rates_value;
 
-    /*initialize the config file*/
-    cf = &cfg;
-    config_init(cf);
+	/*initialize the config file*/
+	cf = &cfg;
+	config_init(cf);
 
-    /*read the file*/
-    if (!config_read_file(cf, file)) {
-        fprintf(stderr, "%d - %s\n",
-            config_error_line(cf),
-            config_error_text(cf));
-        config_destroy(cf);
-        return(EXIT_FAILURE);
-    }
-
-    /*let's parse the values*/
-    config_lookup_int(cf, "ifaces.count", &count_value);
-    ids = config_lookup(cf, "ifaces.ids");
-    count_ids = config_setting_length(ids);
-
-    /*cross check*/
-    if (count_value != count_ids) {
-    	printf("Error on ifaces.count");
-    	return(EXIT_FAILURE);
-    }
-
-    printf("#_if = %d\n",count_ids);
-    size = count_ids;
-
-    prob_matrix = init_probability(size);
-
-
-    for (i = 0; i < count_ids; i++) {
-    	const char *str =  config_setting_get_string_elem(ids, i);
-    	put_mac_address(string_to_mac_address(str),i);
-    }
-
-    print_mac_address_array();
-
-    config_lookup_int(cf, "prob.rates", &rates_value);
-    prob_list = config_lookup(cf,"prob.matrix_list");
-
-    /*Get rates*/
-    rates_prob = config_setting_length(prob_list);
-
-    /*Some checks*/
-    if(!config_setting_is_list(prob_list)
-    		&& rates_prob != rates_value) {
-    	printf("Error on prob_list");
-    	return(EXIT_FAILURE);
-    }
-
-    /*Iterate all matrix arrays*/
-    for (i=0; i < rates_prob ; i++) {
-    	int x = 0, y = 0;
-    	mat_array = config_setting_get_elem(prob_list,i);
-    	if (config_setting_length(mat_array) != count_ids*count_ids) {
-    		return(EXIT_FAILURE);
+	/*read the file*/
+	if (!config_read_file(cf, file)) {
+		fprintf(stderr, "%d - %s\n",
+		config_error_line(cf),
+		config_error_text(cf));
+		config_destroy(cf);
+		return(EXIT_FAILURE);
     	}
-    	/*Iterate all values on matrix array*/
-    	for (j=0; j < config_setting_length(mat_array); j++) {
-    		MATRIX_PROB(prob_matrix,size,x,y,i) =
-    				config_setting_get_float_elem(mat_array,j);
-    		x++;
-    		if (j%count_ids) {
-    			y++;
-    			x=0;
-    		}
-    	}
-    }
 
-    config_destroy(cf);
-    return (EXIT_SUCCESS);
+	/*let's parse the values*/
+	config_lookup_int(cf, "ifaces.count", &count_value);
+	ids = config_lookup(cf, "ifaces.ids");
+	count_ids = config_setting_length(ids);
+
+	/*cross check*/
+	if (count_value != count_ids) {
+		printf("Error on ifaces.count");
+		return(EXIT_FAILURE);
+	}
+
+	printf("#_if = %d\n",count_ids);
+	size = count_ids;
+	/*Initialize the probability*/
+	prob_matrix = init_probability(size);
+
+	/*Fill the mac_addr*/
+	for (i = 0; i < count_ids; i++) {
+    		const char *str =  config_setting_get_string_elem(ids, i);
+    		put_mac_address(string_to_mac_address(str),i);
+    	}
+	/*Print the mac_addr array*/
+	print_mac_address_array();
+
+	config_lookup_int(cf, "prob.rates", &rates_value);
+	prob_list = config_lookup(cf,"prob.matrix_list");
+
+	/*Get rates*/
+	rates_prob = config_setting_length(prob_list);
+
+	/*Some checks*/
+	if(!config_setting_is_list(prob_list)
+	   && rates_prob != rates_value) {
+		printf("Error on prob_list");
+		return(EXIT_FAILURE);
+	}
+
+	/*Iterate all matrix arrays*/
+	for (i=0; i < rates_prob ; i++) {
+		int x = 0, y = 0;
+		mat_array = config_setting_get_elem(prob_list,i);
+		/*If any error break execution*/
+		if (config_setting_length(mat_array) != count_ids*count_ids) {
+    			return(EXIT_FAILURE);
+		}
+		/*Iterate all values on matrix array*/
+		for (j=0; j < config_setting_length(mat_array); j++) {
+			MATRIX_PROB(prob_matrix,size,x,y,i) =
+			config_setting_get_float_elem(mat_array,j);
+			x++;
+			if (j%count_ids) {
+				y++;
+				x=0;
+			}
+		}
+	}
+	config_destroy(cf);
+	return (EXIT_SUCCESS);
 }
 
 
