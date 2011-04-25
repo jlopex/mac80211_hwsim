@@ -14,7 +14,8 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, 
+ *	MA  02110-1301, USA.
  */
 
 
@@ -33,7 +34,8 @@ void fill_prob_matrix(double *aMatrix,double aValue);
 void print_prob_matrix (double *aMatrix);
 
 double generate_random_double();
-double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx);
+double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, 
+				    struct mac_address *dst, int rate_idx);
 
 double * init_probability(int size);
 

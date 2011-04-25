@@ -342,13 +342,13 @@ void init_netlink()
 	cb = nl_cb_alloc(NL_CB_CUSTOM);
 	if (!cb) {
 		printf("Error allocating netlink callbacks\n");
-		exit (1);
+		exit(EXIT_FAILURE);
 	}
 
 	sock = nl_socket_alloc_cb(cb);
 	if (!sock) {
 		printf("Error allocationg netlink socket\n");
-		exit (1);
+		exit(EXIT_FAILURE);
 	}
 
 	genl_connect(sock);
@@ -358,7 +358,7 @@ void init_netlink()
 
 	if (!family) {
 		printf("Family HWSIM not registered\n");
-		exit (1);
+		exit(EXIT_FAILURE);
 	}
 
 	nl_cb_set(cb, NL_CB_MSG_IN, NL_CB_CUSTOM, process_messages_cb, NULL);
@@ -464,7 +464,7 @@ int load_config(const char *file)
 	/*Print the mac_addr array*/
 	print_mac_address_array();
 
-	config_lookup_int(cf, "prob.rates", &rates_value);
+config_lookup_int(cf, "prob.rates", &rates_value);
 	prob_list = config_lookup(cf,"prob.matrix_list");
 
 	/*Get rates*/
@@ -528,12 +528,12 @@ int main(int argc, char* argv[]) {
 	while((opt = getopt(argc, argv, "hVc:o:")) != -1) {
 		switch(opt) {
 		case 'h':
-			print_help(0);
+			print_help(EXIT_SUCCESS);
     			break;
 		case 'V':
 			printf("wmediumd v%s - a wireless medium simulator "
 			       "for mac80211_hwsim\n", VERSION_STR); 
-			exit(0);
+			exit(EXIT_SUCCESS);
 			break;
 		case 'c':
 			printf("Input configuration file: %s\n", optarg);
@@ -548,12 +548,12 @@ int main(int argc, char* argv[]) {
 		case ':':
 			printf("wmediumd: Error - Option `%c' "
 			       "needs a value\n\n", optopt);
-			print_help(1);
+			print_help(EXIT_FAILURE);
 			break;
 		case '?':
 			printf("wmediumd: Error - No such option:"
 			       " `%c'\n\n", optopt);
-			print_help(1);
+			print_help(EXIT_FAILURE);
 		}
 	}
 
@@ -574,5 +574,5 @@ int main(int argc, char* argv[]) {
 	while(1) {
 		nl_recvmsgs_default(sock);
 	}
-	return 1;
+	return EXIT_SUCCESS;
 }

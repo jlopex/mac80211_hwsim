@@ -14,7 +14,8 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+ *	02110-1301, USA.
  */
 
 #include <unistd.h>
@@ -84,7 +85,9 @@ void print_mac_address_array() {
 	while (i < array_size) {
 		struct mac_address *a = malloc(sizeof(struct mac_address));
 		memcpy(a,ptr,sizeof(struct mac_address));
-		printf("A[%d]:%02X:%02X:%02X:%02X:%02X:%02X\n",i,a->addr[0],a->addr[1],a->addr[2],a->addr[3],a->addr[4],a->addr[5]);
+		printf("A[%d]:%02X:%02X:%02X:%02X:%02X:%02X\n",
+		       i,a->addr[0], a->addr[1], a->addr[2], 
+		       a->addr[3], a->addr[4], a->addr[5]);
 		i++;
 		ptr = ptr + sizeof(struct mac_address);
 	}
@@ -137,7 +140,8 @@ void print_prob_matrix (double *aMatrix) {
  * 	If an error occurs returns -1;
  */
 
-double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, struct mac_address *dst, int rate_idx) {
+double find_prob_by_addrs_and_rate (double *aMatrix, struct mac_address *src,
+				    struct mac_address *dst, int rate_idx) {
 
 	int x = find_pos_by_mac_address(src);
 	int y = find_pos_by_mac_address(dst);
@@ -158,37 +162,17 @@ double find_prob_by_addrs_and_rate (double *aMatrix,struct mac_address *src, str
 
 double * init_probability(int size) {
 
-//	int i;
 	array_size = size;
 	indexer = malloc(sizeof(struct mac_address)*array_size);
-// 	void *ptr = indexer;
 
 	if (indexer==NULL) {
 		printf("Problem allocating vector");
 		exit(1);
 	}
 
-//	/* Fill the mac_addr array as mac80211_hwsim does */
-//	struct mac_address a_addr;
-//	a_addr.addr[0] = 0x42;
-//	a_addr.addr[1] = 0x00;
-//	a_addr.addr[2] = 0x00;
-//	a_addr.addr[3] = 0x00;
-//	a_addr.addr[5] = 0x00;
-//
-// 	for (i=0; i < array_size ; i++) {
-// 		a_addr.addr[4] = i;
-// 		memcpy(ptr, &a_addr, sizeof(struct mac_address));
-// 		ptr = ptr + sizeof(struct mac_address);
-// 	}
-//
-// 	print_mac_address_array();
  	/*Let's create the matrix */
  	double * mat = malloc(sizeof(double)*(size*size)*IEEE80211_AVAILABLE_RATES);
  	/* Zero-it */
  	memset(mat,0,sizeof(double)*(size*size)*IEEE80211_AVAILABLE_RATES);
  	return mat;
-
 }
-
-

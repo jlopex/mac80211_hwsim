@@ -14,7 +14,8 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ *	02110-1301, USA.
  */
 
 #include <stdio.h>
@@ -25,7 +26,8 @@ struct mac_address string_to_mac_address(const char* str)
 	struct mac_address mac;
 	int a[6];
 
-	sscanf(str, "%x:%x:%x:%x:%x:%x", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
+	sscanf(str, "%x:%x:%x:%x:%x:%x", 
+	       &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
 
 	mac.addr[0] = a[0];
 	mac.addr[1] = a[1];
@@ -36,4 +38,3 @@ struct mac_address string_to_mac_address(const char* str)
 
 	return mac;
 }
-
