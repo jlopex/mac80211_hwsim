@@ -471,7 +471,7 @@ int load_config(const char *file)
 	/*Print the mac_addr array*/
 	print_mac_address_array();
 
-config_lookup_int(cf, "prob.rates", &rates_value);
+	config_lookup_int(cf, "prob.rates", &rates_value);
 	prob_list = config_lookup(cf,"prob.matrix_list");
 
 	/*Get rates*/

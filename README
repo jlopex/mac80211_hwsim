@@ -30,12 +30,21 @@ Modified mac80211_hwsim module starts in no wmediumd mode, so there is not loss 
 
 The user application is responsible for handling the frames sent from the kernel space, this sample application creates a simple probability matrix with the same probability values per link. 
 
-- To launch the application:
+- To launch the application in configuration mode:
 
  $ cd wmediumd
- $ ./wmediumd [#of mesh interfaces] [Applied Loss Probability (0... 0.1 ... 0.9 1)]
+ $ ./wmediumd -o [FILE]
 
-Once launch it will show the probability matrix and the accepted/dropped/total counters.
+It will create a new FILE with the a sample configuration schema.
+
+- To launch the application in simulation mode:
+
+ $ cd wmediumd
+ $ ./wmediumd -c [FILE]
+
+Once launch it will show all the probability matrix and the transmission counters.
+
+NOTE: It is necessary to provide a configuration file to start the simulation.
 
 [rawsocket]
 
