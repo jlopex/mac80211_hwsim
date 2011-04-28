@@ -401,10 +401,17 @@ int write_config(const char *file, int ifaces)
 	list = config_setting_add(group, "matrix_list", CONFIG_TYPE_LIST);
 	for (j = 0; j < rates ; j++) {
 		array = config_setting_add(list, NULL, CONFIG_TYPE_ARRAY);
+		int diag_count = 0;
 		for(i = 0; i < ifaces*ifaces; ++i) {
 			setting = config_setting_add(array, NULL, 
 						     CONFIG_TYPE_FLOAT);
-			config_setting_set_float(setting, 0.0);
+			if (diag_count == 0)
+				config_setting_set_float(setting, -1.0);
+			else
+				config_setting_set_float(setting, 0.0);
+			diag_count++;
+			if (diag_count > ifaces)
+				diag_count = 0;
 		}
 	}
 	/*Write the config to a file*/
@@ -486,13 +493,17 @@ config_lookup_int(cf, "prob.rates", &rates_value);
     			exit(EXIT_FAILURE);
 		}
 		/*Iterate all values on matrix array*/
-		for (j=0; j < config_setting_length(mat_array); j++) {
+		for (j=0; j < config_setting_length(mat_array); ) {
 			MATRIX_PROB(prob_matrix,size,x,y,i) =
 			config_setting_get_float_elem(mat_array,j);
+			//printf("%f, ", config_setting_get_float_elem(mat_array,j));
 			x++;
-			if (j%count_ids) {
+			j++;
+			/* if we finalized this row */
+			if (j%count_ids==0) {
 				y++;
 				x=0;
+				//printf("*******j:%d,count_ids:%d \n",j,count_ids);
 			}
 		}
 	}
@@ -502,7 +513,7 @@ config_lookup_int(cf, "prob.rates", &rates_value);
 
 void print_help(int exval) 
 {
-	printf("wmediumd v%s - a wireless medium simulator\n", VERSION_STR); 
+	printf("wmediumd v%s - a wireless medium simulator\n", VERSION_STR);
 	printf("wmediumd [-h] [-V] [-c FILE] [-o FILE]\n\n");
 
 	printf("  -h              print this help and exit\n");
@@ -532,7 +543,7 @@ int main(int argc, char* argv[]) {
     			break;
 		case 'V':
 			printf("wmediumd v%s - a wireless medium simulator "
-			       "for mac80211_hwsim\n", VERSION_STR); 
+			       "for mac80211_hwsim\n", VERSION_STR);
 			exit(EXIT_SUCCESS);
 			break;
 		case 'c':
@@ -543,7 +554,11 @@ int main(int argc, char* argv[]) {
 			printf("Output configuration file: %s\n", optarg);
 			printf("How many interfaces are active?\n");
 			scanf("%d",&ifaces);
-			write_config(optarg, ifaces);
+			if (ifaces < 2) {
+				printf("active interfaces must be at least 2\n");
+				exit(EXIT_FAILURE);
+			}
+				write_config(optarg, ifaces);
 			break;
 		case ':':
 			printf("wmediumd: Error - Option `%c' "
@@ -554,12 +569,13 @@ int main(int argc, char* argv[]) {
 			printf("wmediumd: Error - No such option:"
 			       " `%c'\n\n", optopt);
 			print_help(EXIT_FAILURE);
+			break;
 		}
+
 	}
 
-	/* print all remaining options */
-	for(; optind < argc; optind++)
-		printf("argument: %s\n", argv[optind]);
+	if (optind < argc)
+		print_help(EXIT_FAILURE);
 
 	print_prob_matrix(prob_matrix);
 
