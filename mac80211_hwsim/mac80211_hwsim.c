@@ -568,7 +568,7 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 		/* If frame is correctly send through netlink return true*/
 		if (hwsim_frame_send_nl((struct mac_address *)
 		    &data->addresses[1].addr, skb,
-		    atomic_read(&wmediumd_pid))==0)
+		    atomic_read(&wmediumd_pid)) == 0)
 			return true;
 	}
 
