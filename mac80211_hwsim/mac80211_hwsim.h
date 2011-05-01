@@ -41,11 +41,11 @@
  * @HWSIM_CMD_FRAME: send/receive a broadcasted frame from/to kernel/user
  * space, uses:
  *	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_ADDR_RECEIVER,
- *	%HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS, %HWSIM_ATTR_RX_RATE, 
+ *	%HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS, %HWSIM_ATTR_RX_RATE,
  *	%HWSIM_ATTR_SIGNAL, %HWSIM_ATTR_CB_SKB
  * @HWSIM_CMD_TX_INFO_FRAME: Transmission info report from user space to
  * kernel, uses:
- *	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS, 
+ *	%HWSIM_ATTR_ADDR_TRANSMITTER, %HWSIM_ATTR_FRAME, %HWSIM_ATTR_FLAGS,
  *	%HWSIM_ATTR_TX_INFO, %HWSIM_ATTR_SIGNAL
  * @__HWSIM_CMD_MAX: enum limit
  */
@@ -99,7 +99,7 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 				       .len = 6*sizeof(u8) },
 	[HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
 					  .len = 6*sizeof(u8) },
-	[HWSIM_ATTR_FRAME] = { .type = NLA_BINARY, 
+	[HWSIM_ATTR_FRAME] = { .type = NLA_BINARY,
 			       .len = IEEE80211_MAX_DATA_LEN },
 	[HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
 	[HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
@@ -115,7 +115,7 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 static struct genl_family hwsim_genl_family = {
 	.id = GENL_ID_GENERATE,
 	.hdrsize = 0,
-	.name = "HWSIM",
+	.name = "MAC80211_HWSIM",
 	.version = VERSION_NR,
 	.maxattr = HWSIM_ATTR_MAX,
 };

@@ -494,7 +494,6 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 	int rc;
 
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
-	
 	if (skb == NULL) {
 		printk(KERN_DEBUG "mac80211_hwsim: problem allocating skb\n");
 		goto out;
@@ -502,7 +501,6 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 
 	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0,
 			       HWSIM_CMD_FRAME);
-	
 	if (msg_head == NULL) {
 		printk(KERN_DEBUG "mac80211_hwsim: problem with msg_head\n");
 		goto out;
@@ -538,8 +536,8 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 		printk(KERN_DEBUG "mac80211_hwsim: wmediumd not responding "
 		       "at PID:%d, switching to no wmediumd mode.\n", _pid);
 		atomic_set(&wmediumd_pid, 0);
+		return -1;
 	}
-
 	return 0;
 
 out:
@@ -567,10 +565,15 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 
 	/* wmediumd mode */
 	if (atomic_read(&wmediumd_pid)) {
-		hwsim_frame_send_nl((struct mac_address *)
-			&data->addresses[1].addr, skb,
-			atomic_read(&wmediumd_pid));
-		return true;
+		/* If frame is correctly send through netlink return true*/
+		if (hwsim_frame_send_nl((struct mac_address *)
+		    &data->addresses[1].addr, skb,
+		    atomic_read(&wmediumd_pid))==0) {
+			printk("OK\n");
+			return true;
+		} else {
+			printk("KO\n");
+		}
 	}
 
 	/* NO wmediumd, normal mac80211_hwsim behaviour*/
@@ -620,7 +623,7 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	return ack;
 }
 
-static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
+static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
@@ -631,17 +634,15 @@ static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	if (skb->len < 10) {
 		/* Should not happen; just a sanity check for addr1 use */
 		dev_kfree_skb(skb);
-		return NETDEV_TX_OK;
+		return;
 	}
 
+	ack = mac80211_hwsim_tx_frame(hw, skb);
 	/* wmediumd mode*/
-	if (atomic_read(&wmediumd_pid)) {
-		mac80211_hwsim_tx_frame(hw, skb);
-		return NETDEV_TX_OK;
-	}
+	if (atomic_read(&wmediumd_pid))
+		return;
 
 	/* NO wmediumd, normal mac80211_hwsim behaviour*/
-	ack = mac80211_hwsim_tx_frame(hw, skb);
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 		mac80211_hwsim_monitor_ack(hw, hdr->addr2);
@@ -658,7 +659,6 @@ static int mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	if (!(txi->flags & IEEE80211_TX_CTL_NO_ACK) && ack)
 		txi->flags |= IEEE80211_TX_STAT_ACK;
 	ieee80211_tx_status_irqsafe(hw, skb);
-	return NETDEV_TX_OK;
 }
 
 
@@ -1339,7 +1339,7 @@ struct mac80211_hwsim_data *get_hwsim_data_ref_from_addr(
 	struct mac80211_hwsim_data *data;
 	bool _found = false;
 
-	spin_lock(&hwsim_radio_lock);
+	spin_lock_bh(&hwsim_radio_lock);
 	list_for_each_entry(data, &hwsim_radios, list) {
 		if (memcmp(data->addresses[1].addr, addr,
 			  sizeof(struct mac_address)) == 0) {
@@ -1347,7 +1347,7 @@ struct mac80211_hwsim_data *get_hwsim_data_ref_from_addr(
 			break;
 		}
 	}
-	spin_unlock(&hwsim_radio_lock);
+	spin_unlock_bh(&hwsim_radio_lock);
 
 	if (!_found) {
 		printk(KERN_DEBUG "mac80211_hwsim: invalid radio ID\n");
@@ -1401,17 +1401,14 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 		       info->attrs[HWSIM_ATTR_TX_INFO]);
 
 	if (tx_attempts == NULL)
-	{
 		goto out;
-	}
 
 	/* ieee80211_tx_status() does not dereference anything from the
 	 ieee80211_tx_info structure included in this cb, so it is safe
 	 to get whatever we get from userspace and copy it here. */
 
 	/* check size of received custom buffer */
-	if (nla_len(info->attrs[HWSIM_ATTR_CB_SKB]) != sizeof(skb->cb))
-	{
+	if (nla_len(info->attrs[HWSIM_ATTR_CB_SKB]) != sizeof(skb->cb)) {
 		printk(KERN_DEBUG "mac80211_hwsim: not valid cb received\n");
 		goto out;
 	}
@@ -1468,10 +1465,9 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 
 	struct mac_address *dst = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_RECEIVER]);
-	
+
 	int frame_data_len = nla_len(info->attrs[HWSIM_ATTR_FRAME]);
 	char* frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
-
 	/* Allocate new skb here */
 	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN, GFP_KERNEL);
 	if (skb == NULL)

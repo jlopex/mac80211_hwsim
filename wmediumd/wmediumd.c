@@ -14,7 +14,7 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
+ *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  *	02110-1301, USA.
  */
 
@@ -49,7 +49,7 @@ static int acked = 0;
  * 	Generates a random double value
  */
 
-double generate_random_double() 
+double generate_random_double()
 {
 
 	return rand()/((double)RAND_MAX+1);
@@ -60,8 +60,8 @@ double generate_random_double()
  */
 
 int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
-			  unsigned int flags, int signal, 
-			  struct ieee80211_tx_rate *tx_attempts, void *cb) 
+			  unsigned int flags, int signal,
+			  struct ieee80211_tx_rate *tx_attempts, void *cb)
 {
 
 	msg = nlmsg_alloc();
@@ -74,16 +74,16 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
 		    0, NLM_F_REQUEST, HWSIM_CMD_TX_INFO_FRAME, VERSION_NR);
 
 	int rc;
-	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER, 
+	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), dst);
 	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
-	rc = nla_put(msg, HWSIM_ATTR_TX_INFO, 
-		     IEEE80211_MAX_RATES_PER_TX * 
+	rc = nla_put(msg, HWSIM_ATTR_TX_INFO,
+		     IEEE80211_MAX_RATES_PER_TX *
 		     sizeof(struct ieee80211_tx_rate), tx_attempts);
-	
-	rc = nla_put(msg, HWSIM_ATTR_CB_SKB, 
+
+	rc = nla_put(msg, HWSIM_ATTR_CB_SKB,
 		     IEEE80211_CB_SIZE * sizeof(char), cb);
 
 	if(rc!=0) {
@@ -104,7 +104,7 @@ out:
  */
 
 int send_cloned_frame_msg(struct mac_address *dst, char *data,
-			  int data_len, int rate_idx, int signal) 
+			  int data_len, int rate_idx, int signal)
 {
 
 	msg = nlmsg_alloc();
@@ -118,7 +118,7 @@ int send_cloned_frame_msg(struct mac_address *dst, char *data,
 
 	int rc;
 
-	rc = nla_put(msg, HWSIM_ATTR_ADDR_RECEIVER, 
+	rc = nla_put(msg, HWSIM_ATTR_ADDR_RECEIVER,
 		     sizeof(struct mac_address), dst);
 	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_RX_RATE, rate_idx);
@@ -141,9 +141,9 @@ out:
  * 	Get a signal value by rate index
  */
 
-int get_signal_by_rate(int rate_idx) 
+int get_signal_by_rate(int rate_idx)
 {
-	const int rate2signal [] = 
+	const int rate2signal [] =
 		{ -80,-77,-74,-71,-69,-66,-64,-62,-59,-56,-53,-50 };
 	if (rate_idx >= 0 || rate_idx < IEEE80211_AVAILABLE_RATES)
 		return rate2signal[rate_idx];
@@ -154,7 +154,7 @@ int get_signal_by_rate(int rate_idx)
  * 	Send a frame applying the loss probability of the link
  */
 
-int send_frame_msg_apply_prob_and_rate(struct mac_address *src, 
+int send_frame_msg_apply_prob_and_rate(struct mac_address *src,
 				       struct mac_address *dst,
 				       char *data, int data_len, int rate_idx)
 {
@@ -165,10 +165,12 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src,
 	double random_double = generate_random_double();
 
 	if (random_double < prob_per_link) {
+		printf("dropped\n");
 		dropped++;
 		return 0;
 	} else {
 
+		printf("sent\n");
 		/*received signal level*/
 		int signal = get_signal_by_rate(rate_idx);
 
@@ -182,7 +184,7 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src,
  * 	Set a tx_rate struct to not valid values
  */
 
-void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate) 
+void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate)
 {
 	int i;
 	/* set up all unused rates to be -1 */
@@ -194,13 +196,13 @@ void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate)
 
 
 /*
- * 	Iterate all the radios and send a copy of the packet to each interface.
+ * 	Iterate all the radios and send a copy of the frame to each interface.
  */
 
 void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
-					int data_len, unsigned int flags, 
-					struct ieee80211_tx_rate *tx_rates, 
-					void *cb) 
+					int data_len, unsigned int flags,
+					struct ieee80211_tx_rate *tx_rates,
+					void *cb)
 {
 
 	struct mac_address *dst;
@@ -227,8 +229,8 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 
 				dst =  get_mac_address(i);
 
-				/* 
-				 * If origin and destination are the 
+				/*
+				 * If origin and destination are the
 				 * same just skip this iteration
 				*/
 				if(memcmp(src,dst,sizeof(struct mac_address))
@@ -236,11 +238,11 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 					continue;
 				}
 
-				/* Try to send it to a radio and if 
+				/* Try to send it to a radio and if
 				 * the frame is destined to this radio tx_ok
 				*/
 				if(send_frame_msg_apply_prob_and_rate(
-					src, dst, data, data_len, 
+					src, dst, data, data_len,
 					tx_attempts[round].idx) &&
 					memcmp(dst, hdr->addr1,
 					sizeof(struct mac_address))==0) {
@@ -254,17 +256,17 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 	}
 
 	if (tx_ok) {
-		/* if tx is done and acked a frame with the tx_info is 
+		/* if tx is done and acked a frame with the tx_info is
 		 * sent to original radio iface
 		*/
 		acked++;
 		int signal = get_signal_by_rate(tx_attempts[round-1].idx);
 		/* Let's flag this frame as ACK'ed */
 		flags |= IEEE80211_TX_STAT_ACK;
-		send_tx_info_frame_nl(src, data, data_len, flags, 
+		send_tx_info_frame_nl(src, data, data_len, flags,
 				      signal,tx_attempts,cb);
 	} else {
-		send_tx_info_frame_nl(src, data, data_len, flags, 
+		send_tx_info_frame_nl(src, data, data_len, flags,
 				      0, tx_attempts, cb);
 	}
 }
@@ -273,7 +275,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
  * 	Callback function to process messages received from kernel
  */
 
-static int process_messages_cb(struct nl_msg *msg, void *arg) 
+static int process_messages_cb(struct nl_msg *msg, void *arg)
 {
 
 	struct nlattr *attrs[HWSIM_ATTR_MAX+1];
@@ -289,22 +291,23 @@ static int process_messages_cb(struct nl_msg *msg, void *arg)
 			struct mac_address *src = (struct mac_address*)
 				nla_data(attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
 
-			unsigned int data_len = 
+			unsigned int data_len =
 				nla_len(attrs[HWSIM_ATTR_FRAME]);
 			char* data = (char*)nla_data(attrs[HWSIM_ATTR_FRAME]);
-			unsigned int flags = 
+			unsigned int flags =
 				nla_get_u32(attrs[HWSIM_ATTR_FLAGS]);
-			struct ieee80211_tx_rate *tx_rates = 
+			struct ieee80211_tx_rate *tx_rates =
 				(struct ieee80211_tx_rate*)
 				nla_data(attrs[HWSIM_ATTR_TX_INFO]);
 			void *cb = nla_data(attrs[HWSIM_ATTR_CB_SKB]);
 
 			received++;
 
-			send_frames_to_radios_with_retries(src, data, 
+			printf("frame [%d] length:%d\n",received,data_len);
+			send_frames_to_radios_with_retries(src, data,
 					data_len, flags, tx_rates, cb);
-			printf("\rreceived: %d tried: %d sent: %d acked: %d", 
-					received, dropped+sent, sent, acked);
+			//printf("\rreceived: %d tried: %d sent: %d acked: %d",
+			//		received, dropped+sent, sent, acked);
 		}
 	}
 	return 0;
@@ -314,7 +317,7 @@ static int process_messages_cb(struct nl_msg *msg, void *arg)
  * 	Send a register message to kernel
  */
 
-int send_register_msg() 
+int send_register_msg()
 {
 
 	msg = nlmsg_alloc();
@@ -323,7 +326,7 @@ int send_register_msg()
 		return -1;
 	}
 
-	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, genl_family_get_id(family), 
+	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, genl_family_get_id(family),
 		    0, NLM_F_REQUEST, HWSIM_CMD_REGISTER, VERSION_NR);
 	nl_send_auto_complete(sock,msg);
 	nlmsg_free(msg);
@@ -336,7 +339,7 @@ int send_register_msg()
  * 	Init netlink
  */
 
-void init_netlink() 
+void init_netlink()
 {
 
 	cb = nl_cb_alloc(NL_CB_CUSTOM);
@@ -354,10 +357,10 @@ void init_netlink()
 	genl_connect(sock);
 	genl_ctrl_alloc_cache(sock, &cache);
 
-	family = genl_ctrl_search_by_name(cache, "HWSIM");
+	family = genl_ctrl_search_by_name(cache, "MAC80211_HWSIM");
 
 	if (!family) {
-		printf("Family HWSIM not registered\n");
+		printf("Family MAC80211_HWSIM not registered\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -365,18 +368,68 @@ void init_netlink()
 
 }
 
-/* 
- *	Writes a sample configuration file with matrix filled with zeros 
+char *str_replace(const char *str, const char *old, const char *new)
+{
+	char *ret, *r;
+	const char *p, *q;
+	size_t len_str = strlen(str);
+	size_t len_old = strlen(old);
+	size_t len_new = strlen(new);
+	size_t count;
+
+	for(count = 0, p = str; (p = strstr(p, old)); p += len_old)
+		count++;
+
+	ret = malloc(count * (len_new - len_old) + len_str + 1);
+	if(!ret)
+		return NULL;
+
+	for(r = ret, p = str; (q = strstr(p, old)); p = q + len_old) {
+		count = q - p;
+		memcpy(r, p, count);
+		r += count;
+		strcpy(r, new);
+		r += len_new;
+	}
+	strcpy(r, p);
+	return ret;
+}
+
+int write_buffer_to_file(char *file, char *buffer)
+{
+	FILE *p = NULL;
+
+	p = fopen(file, "w");
+	if (p== NULL) {
+		return 1;
+	}
+
+	fwrite(buffer, strlen(buffer), 1, p);
+	fclose(p);
+
+	return 0;
+}
+
+/*
+ *	Writes a sample configuration with matrix filled with a value to a file
  */
 
-int write_config(const char *file, int ifaces) 
+int write_config(char *file, int ifaces, float value)
 {
-
+	FILE *out;
+	char *ptr, *ptr2;
+	size_t size;
 	config_t cfg;
 	config_setting_t *root, *setting, *group, *array, *list;
 	int i, j, rates = 12;
 
-	/*Init config*/	
+	/*Init tmp file stream*/
+	out = open_memstream(&ptr, &size);
+	if (out == NULL) {
+		printf("Error generating stream\n");
+		exit(EXIT_FAILURE);
+	}
+	/*Init config*/
 	config_init(&cfg);
 
 	/*Create a sample config schema*/
@@ -386,7 +439,7 @@ int write_config(const char *file, int ifaces)
 	setting = config_setting_add(group, "count", CONFIG_TYPE_INT);
 	config_setting_set_int(setting, ifaces);
 	array = config_setting_add(group, "ids", CONFIG_TYPE_ARRAY);
-	
+
 	for(i = 0; i < ifaces; ++i) {
 		setting = config_setting_add(array, NULL, CONFIG_TYPE_STRING);
 		char buffer[25];
@@ -403,29 +456,47 @@ int write_config(const char *file, int ifaces)
 		array = config_setting_add(list, NULL, CONFIG_TYPE_ARRAY);
 		int diag_count = 0;
 		for(i = 0; i < ifaces*ifaces; ++i) {
-			setting = config_setting_add(array, NULL, 
+			setting = config_setting_add(array, NULL,
 						     CONFIG_TYPE_FLOAT);
 			if (diag_count == 0)
 				config_setting_set_float(setting, -1.0);
 			else
-				config_setting_set_float(setting, 0.0);
+				config_setting_set_float(setting, value);
 			diag_count++;
 			if (diag_count > ifaces)
 				diag_count = 0;
 		}
 	}
-	/*Write the config to a file*/
-	if (!config_write_file(&cfg, file)) {
+	/* Write in memory out file */
+	config_write(&cfg, out);
+	config_destroy(&cfg);
+	fclose(out);
+
+	/* Let's do some post processing */
+	ptr2 = str_replace(ptr, "], ", "],\n\t");
+	free(ptr);
+	ptr = str_replace(ptr2, "( ", "(\n\t");
+	free(ptr2);
+	/* Let's add comments to the config file */
+	ptr2 = str_replace(ptr, "ifaces :", "#\n# wmediumd sample config file\n#\n\nifaces :");
+	free(ptr);
+	ptr = str_replace(ptr2, "prob :", "\n#\n# probability matrices are defined in a rowcentric way \n# probability matrices are ordered from slower to fastest, check wmediumd documentation for more info\n#\n\nprob :");
+	printf("%s",ptr);
+
+	/*write the string to a file*/
+	if(write_buffer_to_file(file, ptr)) {
 		printf("Error while writing file.\n");
-		config_destroy(&cfg);
+		free(ptr);
 		exit(EXIT_FAILURE);
 	}
 	printf("New configuration successfully written to: %s\n", file);
-	config_destroy(&cfg);
+
+	/*free ptr*/
+	free(ptr);
 	exit(EXIT_SUCCESS);
 }
 
-int load_config(const char *file) 
+int load_config(const char *file)
 {
 
 	config_t cfg, *cf;
@@ -511,7 +582,7 @@ int load_config(const char *file)
 	return (EXIT_SUCCESS);
 }
 
-void print_help(int exval) 
+void print_help(int exval)
 {
 	printf("wmediumd v%s - a wireless medium simulator\n", VERSION_STR);
 	printf("wmediumd [-h] [-V] [-c FILE] [-o FILE]\n\n");
@@ -521,7 +592,7 @@ void print_help(int exval)
 
 	printf("  -c FILE         set intput config file\n");
 	printf("  -o FILE         set output config file\n\n");
-	
+
 	exit(exval);
 }
 
@@ -558,7 +629,7 @@ int main(int argc, char* argv[]) {
 				printf("active interfaces must be at least 2\n");
 				exit(EXIT_FAILURE);
 			}
-				write_config(optarg, ifaces);
+				write_config(optarg, ifaces, 0.0);
 			break;
 		case ':':
 			printf("wmediumd: Error - Option `%c' "

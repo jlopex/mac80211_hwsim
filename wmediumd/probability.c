@@ -14,7 +14,7 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+ *	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  *	02110-1301, USA.
  */
 
@@ -86,7 +86,7 @@ void print_mac_address_array() {
 		struct mac_address *a = malloc(sizeof(struct mac_address));
 		memcpy(a,ptr,sizeof(struct mac_address));
 		printf("A[%d]:%02X:%02X:%02X:%02X:%02X:%02X\n",
-		       i,a->addr[0], a->addr[1], a->addr[2], 
+		       i,a->addr[0], a->addr[1], a->addr[2],
 		       a->addr[3], a->addr[4], a->addr[5]);
 		i++;
 		ptr = ptr + sizeof(struct mac_address);
@@ -145,6 +145,8 @@ double find_prob_by_addrs_and_rate (double *aMatrix, struct mac_address *src,
 
 	int x = find_pos_by_mac_address(src);
 	int y = find_pos_by_mac_address(dst);
+
+	printf("[%d][%d] rate:%d ploss=%f ",x,y,rate_idx,MATRIX_PROB(aMatrix,array_size,x,y,rate_idx));
 
 	if (x == -1 || y ==-1)
 		return -1;
