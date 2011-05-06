@@ -112,10 +112,3 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 
 #define VERSION_NR 1
 
-static struct genl_family hwsim_genl_family = {
-	.id = GENL_ID_GENERATE,
-	.hdrsize = 0,
-	.name = "MAC80211_HWSIM",
-	.version = VERSION_NR,
-	.maxattr = HWSIM_ATTR_MAX,
-};

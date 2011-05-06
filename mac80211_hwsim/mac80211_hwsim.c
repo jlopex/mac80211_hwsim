@@ -327,6 +327,13 @@ struct hwsim_radiotap_hdr {
 	__le16 rt_chbitmask;
 } __packed;
 
+static struct genl_family hwsim_genl_family = {
+	.id = GENL_ID_GENERATE,
+	.hdrsize = 0,
+	.name = "MAC80211_HWSIM",
+	.version = VERSION_NR,
+	.maxattr = HWSIM_ATTR_MAX,
+};
 
 static netdev_tx_t hwsim_mon_xmit(struct sk_buff *skb,
 					struct net_device *dev)
@@ -491,56 +498,42 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 	struct ieee80211_tx_info *txi;
 	struct sk_buff *skb;
 	void *msg_head;
-	int rc;
 
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL) {
-		printk(KERN_DEBUG "mac80211_hwsim: problem allocating skb\n");
-		goto out;
+		goto nla_put_failure;
 	}
 
 	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0,
 			       HWSIM_CMD_FRAME);
 	if (msg_head == NULL) {
 		printk(KERN_DEBUG "mac80211_hwsim: problem with msg_head\n");
-		goto out;
+		goto nla_put_failure;
 	}
 
-	rc = nla_put(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
+	NLA_PUT(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), src);
 	/* We get the skb->data */
-	rc = nla_put(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
+	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
 	/* We get a copy of the control buffer for this tx*/
-	rc = nla_put(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
+	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
 		     my_skb->cb);
 
 	txi = IEEE80211_SKB_CB(my_skb);
 
 	/* We get the flags for this transmission, wmediumd maybe
 	   changes its behaviour depending on the flags */
-	rc = nla_put_u32(skb, HWSIM_ATTR_FLAGS, txi->flags);
+	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, txi->flags);
 	/* We get the tx control (rate and retries) info*/
-	rc = nla_put(skb, HWSIM_ATTR_TX_INFO,
+	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
 		     txi->control.rates);
 
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: "
-		       "error filling msg payload\n");
-		goto out;
-	}
-
 	genlmsg_end(skb, msg_head);
-	rc = genlmsg_unicast(&init_net, skb, _pid);
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: wmediumd not responding "
-		       "at PID:%d, switching to no wmediumd mode.\n", _pid);
-		atomic_set(&wmediumd_pid, 0);
-		return -1;
-	}
+	genlmsg_unicast(&init_net, skb, _pid);
 	return 0;
 
-out:
+nla_put_failure:
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
 	return -1;
 }
@@ -1390,8 +1383,8 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	if (data2 == NULL)
 		goto out;
 
-	/*Tx info received because the frame was broadcasted on user space,
-	 so we get all the necessary info: tx attempts and skb control buffer*/
+	/* Tx info received because the frame was broadcasted on user space,
+	 so we get all the necessary info: tx attempts and skb control buff */
 
 	tx_attempts = (struct ieee80211_tx_rate *)nla_data(
 		       info->attrs[HWSIM_ATTR_TX_INFO]);
@@ -1541,6 +1534,26 @@ static struct genl_ops hwsim_ops[] = {
 	},
 };
 
+static int mac80211_hwsim_netlink_notify(struct notifier_block *nb,
+					 unsigned long state,
+					 void *_notify)
+{
+	if (state != NETLINK_URELEASE)
+		return NOTIFY_DONE;
+
+	if (atomic_read(&wmediumd_pid)) {
+		printk(KERN_INFO "mac80211_hwsim: user released "
+		       "netlink socket\n");
+		atomic_set(&wmediumd_pid, 0);
+	}
+	return NOTIFY_DONE;
+
+}
+
+static struct notifier_block hwsim_netlink_notifier = {
+	.notifier_call = mac80211_hwsim_netlink_notify,
+};
+
 static int hwsim_init_netlink(void)
 {
 	int rc;
@@ -1548,27 +1561,15 @@ static int hwsim_init_netlink(void)
 
 	atomic_set(&wmediumd_pid, 0);
 
-	rc = genl_register_family(&hwsim_genl_family);
-	if (rc != 0)
+	rc = genl_register_family_with_ops(&hwsim_genl_family,
+		hwsim_ops, ARRAY_SIZE(hwsim_ops));
+	if (rc)
 		goto failure;
-	rc = genl_register_ops(&hwsim_genl_family, &hwsim_ops[0]);
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: register ops: %i\n", rc);
-		genl_unregister_family(&hwsim_genl_family);
+	
+	rc = netlink_register_notifier(&hwsim_netlink_notifier);
+	if (rc)
 		goto failure;
-	}
-	rc = genl_register_ops(&hwsim_genl_family, &hwsim_ops[1]);
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: register ops: %i\n", rc);
-		genl_unregister_family(&hwsim_genl_family);
-		goto failure;
-	}
-	rc = genl_register_ops(&hwsim_genl_family, &hwsim_ops[2]);
-	if (rc != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: register ops: %i\n", rc);
-		genl_unregister_family(&hwsim_genl_family);
-		goto failure;
-	}
+	
 	return 0;
 
 failure:
@@ -1581,25 +1582,11 @@ static void hwsim_exit_netlink(void)
 	int ret;
 
 	printk(KERN_INFO "mac80211_hwsim: closing netlink\n");
-	/*unregister the functions*/
-
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[0]);
-	if (ret != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: unregister ops: %i\n", ret);
-		return;
-	}
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[1]);
-	if (ret != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: unregister ops: %i\n", ret);
-		return;
-	}
-	ret = genl_unregister_ops(&hwsim_genl_family, &hwsim_ops[2]);
-	if (ret != 0) {
-		printk(KERN_DEBUG "mac80211_hwsim: unregister ops: %i\n", ret);
-		return;
-	}
+	/* unregister the notifier */
+	netlink_unregister_notifier(&hwsim_netlink_notifier);
+	/* unregister the family */
 	ret = genl_unregister_family(&hwsim_genl_family);
-	if (ret != 0)
+	if (ret)
 		printk(KERN_DEBUG "mac80211_hwsim: "
 		       "unregister family %i\n", ret);
 }
