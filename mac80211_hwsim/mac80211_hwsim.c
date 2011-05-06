@@ -490,17 +490,26 @@ static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
 	return md.ret;
 }
 
-
-static int hwsim_frame_send_nl(struct mac_address *src,
-			       struct sk_buff *my_skb, int _pid)
+static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
+				    struct sk_buff *my_skb)
 {
-
-	struct ieee80211_tx_info *txi;
 	struct sk_buff *skb;
+	struct mac80211_hwsim_data *data = hw->priv;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) my_skb->data;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(my_skb);
 	void *msg_head;
 
+	if (data->idle) {
+		wiphy_debug(hw->wiphy, "Trying to TX when idle - reject\n");
+		return;
+	}
+
+	if (data->ps != PS_DISABLED)
+		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
+	
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL) {
+		printk("CREANDO\n");
 		goto nla_put_failure;
 	}
 
@@ -512,34 +521,31 @@ static int hwsim_frame_send_nl(struct mac_address *src,
 	}
 
 	NLA_PUT(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
-		     sizeof(struct mac_address), src);
+		     sizeof(struct mac_address), data->addresses[1].addr);
 	/* We get the skb->data */
 	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
 	/* We get a copy of the control buffer for this tx*/
 	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
 		     my_skb->cb);
 
-	txi = IEEE80211_SKB_CB(my_skb);
-
 	/* We get the flags for this transmission, wmediumd maybe
 	   changes its behaviour depending on the flags */
-	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, txi->flags);
+	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, info->flags);
 	/* We get the tx control (rate and retries) info*/
 	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
-		     txi->control.rates);
+		     info->control.rates);
 
 	genlmsg_end(skb, msg_head);
-	genlmsg_unicast(&init_net, skb, _pid);
-	return 0;
+	genlmsg_unicast(&init_net, skb, atomic_read(&wmediumd_pid));
+	return;
 
 nla_put_failure:
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
-	return -1;
 }
 
-static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
-				    struct sk_buff *skb)
+static bool mac80211_hwsim_tx_frame_no_nl(struct ieee80211_hw *hw,
+					  struct sk_buff *skb)
 {
 	struct mac80211_hwsim_data *data = hw->priv, *data2;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
@@ -555,17 +561,6 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
-
-	/* wmediumd mode */
-	if (atomic_read(&wmediumd_pid)) {
-		/* If frame is correctly send through netlink return true*/
-		if (hwsim_frame_send_nl((struct mac_address *)
-		    &data->addresses[1].addr, skb,
-		    atomic_read(&wmediumd_pid)) == 0)
-			return true;
-	}
-
-	/* NO wmediumd, normal mac80211_hwsim behaviour*/
 
 	memset(&rx_status, 0, sizeof(rx_status));
 	/* TODO: set mactime */
@@ -612,6 +607,16 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	return ack;
 }
 
+static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
+				    struct sk_buff *skb)
+{
+	if (atomic_read(&wmediumd_pid)) {
+		mac80211_hwsim_tx_frame_nl(hw, skb);
+		return true;
+	}
+	return mac80211_hwsim_tx_frame_no_nl(hw, skb);
+
+}
 static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
@@ -627,6 +632,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	}
 
 	ack = mac80211_hwsim_tx_frame(hw, skb);
+	
 	/* wmediumd mode*/
 	if (atomic_read(&wmediumd_pid))
 		return;

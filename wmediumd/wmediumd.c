@@ -342,7 +342,7 @@ int send_register_msg()
 void init_netlink()
 {
 
-	cb = nl_cb_alloc(NL_CB_CUSTOM);
+	cb = nl_cb_alloc(NL_CB_VERBOSE);
 	if (!cb) {
 		printf("Error allocating netlink callbacks\n");
 		exit(EXIT_FAILURE);
