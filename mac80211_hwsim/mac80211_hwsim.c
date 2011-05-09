@@ -29,6 +29,8 @@
 #include <net/genetlink.h>
 #include "mac80211_hwsim.h"
 
+#define MAXQUEUE 8
+
 MODULE_AUTHOR("Jouni Malinen");
 MODULE_DESCRIPTION("Software simulator of 802.11 radio(s) for mac80211");
 MODULE_LICENSE("GPL");
@@ -307,6 +309,8 @@ struct mac80211_hwsim_data {
 	struct dentry *debugfs;
 	struct dentry *debugfs_ps;
 
+	struct sk_buff_head tx_queue;	/* packets to transmit */
+
 	/*
 	 * Only radios in the same group can communicate together (the
 	 * channel has to match too). Each bit represents a group. A
@@ -507,9 +511,14 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
 	
-	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
+	printk(KERN_DEBUG "%s: tx_buffer: %d\n", wiphy_name(hw->wiphy),skb_queue_len(&data->tx_queue));
+	if (skb_queue_len(&data->tx_queue) >= MAXQUEUE) {
+		printk(KERN_DEBUG "%s: tx_buffers full, dropping\n",
+			wiphy_name(hw->wiphy));
+		return;
+ 	}	
+/*	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL) {
-		printk("CREANDO\n");
 		goto nla_put_failure;
 	}
 
@@ -522,22 +531,32 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	NLA_PUT(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), data->addresses[1].addr);
+*/
 	/* We get the skb->data */
-	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
+/*	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->data_len, my_skb->data);
+*/
 	/* We get a copy of the control buffer for this tx*/
-	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
+/*	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
 		     my_skb->cb);
-
+*/
 	/* We get the flags for this transmission, wmediumd maybe
 	   changes its behaviour depending on the flags */
-	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, info->flags);
+/*	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, info->flags);
+*/
 	/* We get the tx control (rate and retries) info*/
-	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
+/*	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
 		     info->control.rates);
 
 	genlmsg_end(skb, msg_head);
 	genlmsg_unicast(&init_net, skb, atomic_read(&wmediumd_pid));
+*/
+	if (&data->tx_queue == NULL)
+		printk("&data->tx_queue es NULL\n");
+	if (my_skb == NULL)
+		printk("my_skb es NULL\n");
+	skb_queue_tail(&data->tx_queue, my_skb);
+	printk(KERN_DEBUG "%s: tx_buffer2: %d\n", wiphy_name(hw->wiphy),skb_queue_len(&data->tx_queue));
 	return;
 
 nla_put_failure:
@@ -613,9 +632,8 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	if (atomic_read(&wmediumd_pid)) {
 		mac80211_hwsim_tx_frame_nl(hw, skb);
 		return true;
-	}
-	return mac80211_hwsim_tx_frame_no_nl(hw, skb);
-
+	} else
+		return mac80211_hwsim_tx_frame_no_nl(hw, skb);
 }
 static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
@@ -1652,6 +1670,8 @@ static int __init init_mac80211_hwsim(void)
 			goto failed_drvdata;
 		}
 		data->dev->driver = &mac80211_hwsim_driver;
+
+		skb_queue_head_init(&data->tx_queue);
 
 		SET_IEEE80211_DEV(hw, data->dev);
 		addr[3] = i >> 8;
