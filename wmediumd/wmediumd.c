@@ -61,7 +61,8 @@ double generate_random_double()
 
 int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
 			  unsigned int flags, int signal,
-			  struct ieee80211_tx_rate *tx_attempts, void *cb)
+			  struct ieee80211_tx_rate *tx_attempts, 
+			  unsigned long cookie)
 {
 
 	msg = nlmsg_alloc();
@@ -83,8 +84,7 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
 		     IEEE80211_MAX_RATES_PER_TX *
 		     sizeof(struct ieee80211_tx_rate), tx_attempts);
 
-	rc = nla_put(msg, HWSIM_ATTR_CB_SKB,
-		     IEEE80211_CB_SIZE * sizeof(char), cb);
+	rc = nla_put_u32(msg, HWSIM_ATTR_COOKIE, cookie);
 
 	if(rc!=0) {
 		printf("Error filling payload\n");
@@ -202,7 +202,7 @@ void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate)
 void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 					int data_len, unsigned int flags,
 					struct ieee80211_tx_rate *tx_rates,
-					void *cb)
+					unsigned long cookie)
 {
 
 	struct mac_address *dst;
@@ -264,10 +264,10 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 		/* Let's flag this frame as ACK'ed */
 		flags |= IEEE80211_TX_STAT_ACK;
 		send_tx_info_frame_nl(src, data, data_len, flags,
-				      signal,tx_attempts,cb);
+				      signal,tx_attempts, cookie);
 	} else {
 		send_tx_info_frame_nl(src, data, data_len, flags,
-				      0, tx_attempts, cb);
+				      0, tx_attempts, cookie);
 	}
 }
 
@@ -299,13 +299,12 @@ static int process_messages_cb(struct nl_msg *msg, void *arg)
 			struct ieee80211_tx_rate *tx_rates =
 				(struct ieee80211_tx_rate*)
 				nla_data(attrs[HWSIM_ATTR_TX_INFO]);
-			void *cb = nla_data(attrs[HWSIM_ATTR_CB_SKB]);
-
+			unsigned long cookie = nla_get_u32(attrs[HWSIM_ATTR_COOKIE]);
 			received++;
 
 			printf("frame [%d] length:%d\n",received,data_len);
 			send_frames_to_radios_with_retries(src, data,
-					data_len, flags, tx_rates, cb);
+					data_len, flags, tx_rates, cookie);
 			//printf("\rreceived: %d tried: %d sent: %d acked: %d",
 			//		received, dropped+sent, sent, acked);
 		}

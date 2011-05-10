@@ -505,19 +505,24 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	if (data->idle) {
 		wiphy_debug(hw->wiphy, "Trying to TX when idle - reject\n");
+		dev_kfree_skb(my_skb);
 		return;
 	}
 
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
+
+	
+//	skb_orphan(my_skb);
 	
 	printk(KERN_DEBUG "%s: tx_buffer: %d\n", wiphy_name(hw->wiphy),skb_queue_len(&data->tx_queue));
 	if (skb_queue_len(&data->tx_queue) >= MAXQUEUE) {
 		printk(KERN_DEBUG "%s: tx_buffers full, dropping\n",
 			wiphy_name(hw->wiphy));
+		dev_kfree_skb(my_skb);
 		return;
  	}	
-/*	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
+	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL) {
 		goto nla_put_failure;
 	}
@@ -531,32 +536,30 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	NLA_PUT(skb, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), data->addresses[1].addr);
-*/
+
 	/* We get the skb->data */
-/*	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->data_len, my_skb->data);
-*/
-	/* We get a copy of the control buffer for this tx*/
-/*	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
-		     my_skb->cb);
-*/
+	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->data_len, my_skb->data);
+
+	/* We get a copy of the control buffer for this tx
+	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
+		     my_skb->cb);*/
+
 	/* We get the flags for this transmission, wmediumd maybe
 	   changes its behaviour depending on the flags */
-/*	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, info->flags);
-*/
+	NLA_PUT_U32(skb, HWSIM_ATTR_FLAGS, info->flags);
+
 	/* We get the tx control (rate and retries) info*/
-/*	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
+	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
 		     info->control.rates);
 
+	NLA_PUT_U32(skb, HWSIM_ATTR_COOKIE, (unsigned long) my_skb);
+
 	genlmsg_end(skb, msg_head);
 	genlmsg_unicast(&init_net, skb, atomic_read(&wmediumd_pid));
-*/
-	if (&data->tx_queue == NULL)
-		printk("&data->tx_queue es NULL\n");
-	if (my_skb == NULL)
-		printk("my_skb es NULL\n");
+
+	/* Enqueue the packet */
 	skb_queue_tail(&data->tx_queue, my_skb);
-	printk(KERN_DEBUG "%s: tx_buffer2: %d\n", wiphy_name(hw->wiphy),skb_queue_len(&data->tx_queue));
 	return;
 
 nla_put_failure:
@@ -672,6 +675,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	if (!(txi->flags & IEEE80211_TX_CTL_NO_ACK) && ack)
 		txi->flags |= IEEE80211_TX_STAT_ACK;
 	ieee80211_tx_status_irqsafe(hw, skb);
+
 }
 
 
@@ -751,7 +755,6 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 	mac80211_hwsim_tx_frame(hw, skb);
-	dev_kfree_skb(skb);
 }
 
 
@@ -1240,7 +1243,7 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	memcpy(pspoll->ta, mac, ETH_ALEN);
 	if (!mac80211_hwsim_tx_frame(data->hw, skb))
 		printk(KERN_DEBUG "%s: PS-Poll frame not ack'ed\n", __func__);
-	dev_kfree_skb(skb);
+//	dev_kfree_skb(skb);
 }
 
 
@@ -1271,7 +1274,7 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	memcpy(hdr->addr3, vp->bssid, ETH_ALEN);
 	if (!mac80211_hwsim_tx_frame(data->hw, skb))
 		printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n", __func__);
-	dev_kfree_skb(skb);
+//	dev_kfree_skb(skb);
 }
 
 
@@ -1380,7 +1383,8 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	struct mac80211_hwsim_data *data2;
 	struct ieee80211_tx_info *txi;
 	struct ieee80211_tx_rate *tx_attempts;
-	char *cb;
+	struct sk_buff __user *ret_skb;
+	struct sk_buff *skb = NULL, *tmp;
 
 	int i;
 
@@ -1390,23 +1394,27 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	char *frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
 	int flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
 
-	/* Allocate new skb here */
-	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN, GFP_KERNEL);
-	if (skb == NULL)
-		goto out;
+	ret_skb = (struct sk_buff __user *) 
+		  (unsigned long) nla_get_u32(info->attrs[HWSIM_ATTR_COOKIE]);
 
-	if (frame_data_len <= IEEE80211_MAX_DATA_LEN) {
-		/* Copy the data */
-		memcpy(skb_put(skb, frame_data_len), frame_data,
-		       frame_data_len);
-	} else
-		goto out;
 
 	data2 = get_hwsim_data_ref_from_addr(dst);
 
 	if (data2 == NULL)
 		goto out;
 
+	/* look for the skb matching the cookie passed back from user */
+	skb_queue_walk_safe(&data2->tx_queue, skb, tmp) {
+	if (skb == ret_skb) {
+		skb_unlink(skb, &data2->tx_queue);
+			break;
+		}
+	}
+
+	/* not found */
+	if (skb == (struct sk_buff *) &data2->tx_queue)
+		goto out;
+	
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
 
@@ -1415,23 +1423,6 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 
 	if (tx_attempts == NULL)
 		goto out;
-
-	/* ieee80211_tx_status() does not dereference anything from the
-	 ieee80211_tx_info structure included in this cb, so it is safe
-	 to get whatever we get from userspace and copy it here. */
-
-	/* check size of received custom buffer */
-	if (nla_len(info->attrs[HWSIM_ATTR_CB_SKB]) != sizeof(skb->cb)) {
-		printk(KERN_DEBUG "mac80211_hwsim: not valid cb received\n");
-		goto out;
-	}
-
-	/* ieee80211_tx_status() does not dereference anything from the
-	 ieee80211_tx_info structure included in this cb, so it is safe
-	 to get whatever we get from userspace and copy it here. */
-
-	cb = (char *)nla_data(info->attrs[HWSIM_ATTR_CB_SKB]);
-	memcpy(skb->cb, cb, sizeof(skb->cb));
 
 	/* now send back TX status */
 	txi = IEEE80211_SKB_CB(skb);
