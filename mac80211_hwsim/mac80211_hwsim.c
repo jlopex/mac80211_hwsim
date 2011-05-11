@@ -332,6 +332,7 @@ struct hwsim_radiotap_hdr {
 	__le16 rt_chbitmask;
 } __packed;
 
+/* MAC80211_HWSIM netlink family */
 static struct genl_family hwsim_genl_family = {
 	.id = GENL_ID_GENERATE,
 	.hdrsize = 0,
@@ -512,29 +513,19 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
-	
-/*	if (skb_queue_len(&data->pending) >= MAX_QUEUE) {
-		printk(KERN_DEBUG "mac80211_hwsim: queue full, "
-			"dropping frames\n");
-		dev_kfree_skb(my_skb);
-		return;
- 	}
-*/
-	/* If the queue contains more skb's than MAX_QUEUE drop some */	
+
+	/* If the queue contains MAX_QUEUE skb's drop some */
 	if (skb_queue_len(&data->pending) >= MAX_QUEUE) {
-		
-		printk(KERN_DEBUG "mac80211_hwsim: queues at warning level, "
+
+		printk(KERN_DEBUG "mac80211_hwsim: queues at maximum level, "
 			"droping some old frames\n");
-		while (skb_queue_len(&data->pending) >= WARN_QUEUE) {
+		while (skb_queue_len(&data->pending) >= WARN_QUEUE)
 			skb_dequeue(&data->pending);
-			printk("size: %d\n", skb_queue_len(&data->pending));
-		}
 	}
 
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
-	if (skb == NULL) {
+	if (skb == NULL)
 		goto nla_put_failure;
-	}
 
 	msg_head = genlmsg_put(skb, 0, 0, &hwsim_genl_family, 0,
 			       HWSIM_CMD_FRAME);
@@ -643,6 +634,7 @@ static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 	} else
 		return mac80211_hwsim_tx_frame_no_nl(hw, skb);
 }
+
 static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
@@ -657,7 +649,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 	}
 
 	ack = mac80211_hwsim_tx_frame(hw, skb);
-	
+
 	/* wmediumd mode*/
 	if (atomic_read(&wmediumd_pid))
 		return;
@@ -1074,13 +1066,7 @@ static int mac80211_hwsim_ampdu_action(struct ieee80211_hw *hw,
 
 static void mac80211_hwsim_flush(struct ieee80211_hw *hw, bool drop)
 {
-	/*
-	 * In this special case, there's nothing we need to
-	 * do because hwsim does transmission synchronously.
-	 * In the future, when it does transmissions via
-	 * userspace, we may need to do something.
-	 */
-
+	/* Let's purge the pending queue */
 	struct mac80211_hwsim_data *data = hw->priv;
 	skb_queue_purge(&data->pending);
 }
@@ -1250,7 +1236,6 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	memcpy(pspoll->ta, mac, ETH_ALEN);
 	if (!mac80211_hwsim_tx_frame(data->hw, skb))
 		printk(KERN_DEBUG "%s: PS-Poll frame not ack'ed\n", __func__);
-//	dev_kfree_skb(skb);
 }
 
 
@@ -1281,7 +1266,6 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	memcpy(hdr->addr3, vp->bssid, ETH_ALEN);
 	if (!mac80211_hwsim_tx_frame(data->hw, skb))
 		printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n", __func__);
-//	dev_kfree_skb(skb);
 }
 
 
@@ -1378,8 +1362,6 @@ struct mac80211_hwsim_data *get_hwsim_data_ref_from_addr(
 	}
 
 	return data;
-
-
 }
 
 static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
@@ -1400,7 +1382,7 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 				   info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
 	int flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
 
-	ret_skb = (struct sk_buff __user *) 
+	ret_skb = (struct sk_buff __user *)
 		  (unsigned long) nla_get_u32(info->attrs[HWSIM_ATTR_COOKIE]);
 
 	data2 = get_hwsim_data_ref_from_addr(dst);
@@ -1419,7 +1401,7 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 
 	/* not found */
 	if (!found)
-		goto out;
+		return -1;
 
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
@@ -1458,23 +1440,9 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	}
 	ieee80211_tx_status_irqsafe(data2->hw, skb);
 
-	/* Dequeue frames if tx_queue is at WARNING level
-	if (data2->drop)  {
-		printk(KERN_DEBUG "mac80211_hwsim: queues at warning level, "
-			"droping some old frames\n");
-		while (skb_queue_len(&data2->pending) >= (WARN_QUEUE / 2) )
-			skb_dequeue(&data2->pending);
-		data2->drop = false;
- 	}
-
-
-	if (skb_queue_len(&data2->pending) > 10)
-		printk("queue: %d\n", skb_queue_len(&data2->pending));	
-*/
 	return 0;
 
 out:
-	//kfree_skb(skb);
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
 	return -1;
 
@@ -1493,7 +1461,7 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 	int frame_data_len = nla_len(info->attrs[HWSIM_ATTR_FRAME]);
 	char* frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
 	/* Allocate new skb here */
-	struct sk_buff *skb = alloc_skb(IEEE80211_MAX_DATA_LEN, GFP_KERNEL);
+	struct sk_buff *skb = alloc_skb(frame_data_len, GFP_KERNEL);
 	if (skb == NULL)
 		goto out;
 
@@ -1574,13 +1542,13 @@ static int mac80211_hwsim_netlink_notify(struct notifier_block *nb,
 					 void *_notify)
 {
 	struct netlink_notify *notify = _notify;
-	
-	if (state != NETLINK_URELEASE) 
+
+	if (state != NETLINK_URELEASE)
 		return NOTIFY_DONE;
 
 	if (notify->pid == atomic_read(&wmediumd_pid)) {
-		printk(KERN_INFO "mac80211_hwsim: unicast netlink "
-		       "socket released\n");
+		printk(KERN_INFO "mac80211_hwsim: wmediumd released netlink"
+		       " socket, switching to perfect channel medium\n");
 		atomic_set(&wmediumd_pid, 0);
 	}
 	return NOTIFY_DONE;
@@ -1602,11 +1570,11 @@ static int hwsim_init_netlink(void)
 		hwsim_ops, ARRAY_SIZE(hwsim_ops));
 	if (rc)
 		goto failure;
-	
+
 	rc = netlink_register_notifier(&hwsim_netlink_notifier);
 	if (rc)
 		goto failure;
-	
+
 	return 0;
 
 failure:
