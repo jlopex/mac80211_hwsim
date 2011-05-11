@@ -29,7 +29,8 @@
 #include <net/genetlink.h>
 #include "mac80211_hwsim.h"
 
-#define MAXQUEUE 8
+#define WARN_QUEUE 100
+#define MAX_QUEUE 200
 
 MODULE_AUTHOR("Jouni Malinen");
 MODULE_DESCRIPTION("Software simulator of 802.11 radio(s) for mac80211");
@@ -309,7 +310,7 @@ struct mac80211_hwsim_data {
 	struct dentry *debugfs;
 	struct dentry *debugfs_ps;
 
-	struct sk_buff_head tx_queue;	/* packets to transmit */
+	struct sk_buff_head pending;	/* packets pending */
 
 	/*
 	 * Only radios in the same group can communicate together (the
@@ -511,17 +512,25 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
-
 	
-//	skb_orphan(my_skb);
-	
-	printk(KERN_DEBUG "%s: tx_buffer: %d\n", wiphy_name(hw->wiphy),skb_queue_len(&data->tx_queue));
-	if (skb_queue_len(&data->tx_queue) >= MAXQUEUE) {
-		printk(KERN_DEBUG "%s: tx_buffers full, dropping\n",
-			wiphy_name(hw->wiphy));
+/*	if (skb_queue_len(&data->pending) >= MAX_QUEUE) {
+		printk(KERN_DEBUG "mac80211_hwsim: queue full, "
+			"dropping frames\n");
 		dev_kfree_skb(my_skb);
 		return;
- 	}	
+ 	}
+*/
+	/* If the queue contains more skb's than MAX_QUEUE drop some */	
+	if (skb_queue_len(&data->pending) >= MAX_QUEUE) {
+		
+		printk(KERN_DEBUG "mac80211_hwsim: queues at warning level, "
+			"droping some old frames\n");
+		while (skb_queue_len(&data->pending) >= WARN_QUEUE) {
+			skb_dequeue(&data->pending);
+			printk("size: %d\n", skb_queue_len(&data->pending));
+		}
+	}
+
 	skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL) {
 		goto nla_put_failure;
@@ -538,11 +547,7 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 		     sizeof(struct mac_address), data->addresses[1].addr);
 
 	/* We get the skb->data */
-	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->data_len, my_skb->data);
-
-	/* We get a copy of the control buffer for this tx
-	NLA_PUT(skb, HWSIM_ATTR_CB_SKB, sizeof(my_skb->cb),
-		     my_skb->cb);*/
+	NLA_PUT(skb, HWSIM_ATTR_FRAME, my_skb->len, my_skb->data);
 
 	/* We get the flags for this transmission, wmediumd maybe
 	   changes its behaviour depending on the flags */
@@ -552,14 +557,14 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
 		     sizeof(struct ieee80211_tx_rate)*IEEE80211_TX_MAX_RATES,
 		     info->control.rates);
-
+	/* We create a cookie to identify this skb */
 	NLA_PUT_U32(skb, HWSIM_ATTR_COOKIE, (unsigned long) my_skb);
 
 	genlmsg_end(skb, msg_head);
 	genlmsg_unicast(&init_net, skb, atomic_read(&wmediumd_pid));
 
 	/* Enqueue the packet */
-	skb_queue_tail(&data->tx_queue, my_skb);
+	skb_queue_tail(&data->pending, my_skb);
 	return;
 
 nla_put_failure:
@@ -642,7 +647,6 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
-
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 
@@ -1076,6 +1080,9 @@ static void mac80211_hwsim_flush(struct ieee80211_hw *hw, bool drop)
 	 * In the future, when it does transmissions via
 	 * userspace, we may need to do something.
 	 */
+
+	struct mac80211_hwsim_data *data = hw->priv;
+	skb_queue_purge(&data->pending);
 }
 
 struct hw_scan_done {
@@ -1387,16 +1394,14 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	struct sk_buff *skb = NULL, *tmp;
 
 	int i;
+	bool found = false;
 
 	struct mac_address *dst = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
-	int frame_data_len = nla_len(info->attrs[HWSIM_ATTR_FRAME]);
-	char *frame_data = (char *)nla_data(info->attrs[HWSIM_ATTR_FRAME]);
 	int flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
 
 	ret_skb = (struct sk_buff __user *) 
 		  (unsigned long) nla_get_u32(info->attrs[HWSIM_ATTR_COOKIE]);
-
 
 	data2 = get_hwsim_data_ref_from_addr(dst);
 
@@ -1404,17 +1409,18 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 		goto out;
 
 	/* look for the skb matching the cookie passed back from user */
-	skb_queue_walk_safe(&data2->tx_queue, skb, tmp) {
-	if (skb == ret_skb) {
-		skb_unlink(skb, &data2->tx_queue);
+	skb_queue_walk_safe(&data2->pending, skb, tmp) {
+		if (skb == ret_skb) {
+			skb_unlink(skb, &data2->pending);
+			found = true;
 			break;
 		}
 	}
 
 	/* not found */
-	if (skb == (struct sk_buff *) &data2->tx_queue)
+	if (!found)
 		goto out;
-	
+
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
 
@@ -1451,10 +1457,24 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 		}
 	}
 	ieee80211_tx_status_irqsafe(data2->hw, skb);
+
+	/* Dequeue frames if tx_queue is at WARNING level
+	if (data2->drop)  {
+		printk(KERN_DEBUG "mac80211_hwsim: queues at warning level, "
+			"droping some old frames\n");
+		while (skb_queue_len(&data2->pending) >= (WARN_QUEUE / 2) )
+			skb_dequeue(&data2->pending);
+		data2->drop = false;
+ 	}
+
+
+	if (skb_queue_len(&data2->pending) > 10)
+		printk("queue: %d\n", skb_queue_len(&data2->pending));	
+*/
 	return 0;
 
 out:
-	kfree_skb(skb);
+	//kfree_skb(skb);
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
 	return -1;
 
@@ -1553,12 +1573,14 @@ static int mac80211_hwsim_netlink_notify(struct notifier_block *nb,
 					 unsigned long state,
 					 void *_notify)
 {
-	if (state != NETLINK_URELEASE)
+	struct netlink_notify *notify = _notify;
+	
+	if (state != NETLINK_URELEASE) 
 		return NOTIFY_DONE;
 
-	if (atomic_read(&wmediumd_pid)) {
-		printk(KERN_INFO "mac80211_hwsim: user released "
-		       "netlink socket\n");
+	if (notify->pid == atomic_read(&wmediumd_pid)) {
+		printk(KERN_INFO "mac80211_hwsim: unicast netlink "
+		       "socket released\n");
 		atomic_set(&wmediumd_pid, 0);
 	}
 	return NOTIFY_DONE;
@@ -1662,7 +1684,7 @@ static int __init init_mac80211_hwsim(void)
 		}
 		data->dev->driver = &mac80211_hwsim_driver;
 
-		skb_queue_head_init(&data->tx_queue);
+		skb_queue_head_init(&data->pending);
 
 		SET_IEEE80211_DEV(hw, data->dev);
 		addr[3] = i >> 8;

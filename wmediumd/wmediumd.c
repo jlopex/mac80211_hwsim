@@ -59,7 +59,7 @@ double generate_random_double()
  *	Send a tx_info frame to the kernel space.
  */
 
-int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
+int send_tx_info_frame_nl(struct mac_address *dst,
 			  unsigned int flags, int signal,
 			  struct ieee80211_tx_rate *tx_attempts, 
 			  unsigned long cookie)
@@ -77,7 +77,6 @@ int send_tx_info_frame_nl(struct mac_address *dst, char *data, int data_len,
 	int rc;
 	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER,
 		     sizeof(struct mac_address), dst);
-	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
 	rc = nla_put(msg, HWSIM_ATTR_TX_INFO,
@@ -263,11 +262,9 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 		int signal = get_signal_by_rate(tx_attempts[round-1].idx);
 		/* Let's flag this frame as ACK'ed */
 		flags |= IEEE80211_TX_STAT_ACK;
-		send_tx_info_frame_nl(src, data, data_len, flags,
-				      signal,tx_attempts, cookie);
+		send_tx_info_frame_nl(src, flags, signal, tx_attempts, cookie);
 	} else {
-		send_tx_info_frame_nl(src, data, data_len, flags,
-				      0, tx_attempts, cookie);
+		send_tx_info_frame_nl(src, flags, 0, tx_attempts, cookie);
 	}
 }
 
@@ -341,7 +338,7 @@ int send_register_msg()
 void init_netlink()
 {
 
-	cb = nl_cb_alloc(NL_CB_VERBOSE);
+	cb = nl_cb_alloc(NL_CB_CUSTOM);
 	if (!cb) {
 		printf("Error allocating netlink callbacks\n");
 		exit(EXIT_FAILURE);
