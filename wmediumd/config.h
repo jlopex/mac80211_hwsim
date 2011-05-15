@@ -18,24 +18,10 @@
  *	02110-1301, USA.
  */
 
-#ifndef WMEDIUMD_H_
-#define WMEDIUMD_H_
+#ifndef CONFIG_H_
+#define CONFIG_H_
 
+int load_config(const char *file);
+int write_config(char *file, int ifaces, float value);
 
-#define HWSIM_CMD_REGISTER 1
-#define HWSIM_CMD_FRAME 2
-#define HWSIM_CMD_TX_INFO_FRAME 3
-
-#define HWSIM_ATTR_ADDR_RECEIVER 1
-#define HWSIM_ATTR_ADDR_TRANSMITTER 2
-#define HWSIM_ATTR_FRAME 3
-#define HWSIM_ATTR_FLAGS 4
-#define HWSIM_ATTR_RX_RATE 5
-#define HWSIM_ATTR_SIGNAL 6
-#define HWSIM_ATTR_TX_INFO 7
-#define HWSIM_ATTR_COOKIE 8
-#define HWSIM_ATTR_MAX 8
-#define VERSION_NR 1
-
-
-#endif /* WMEDIUMD_H_ */
+#endif /* CONFIG_H_ */

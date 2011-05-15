@@ -45,17 +45,19 @@ It will create a new FILE with the a sample configuration schema.
 Once launch it will show all the probability matrix and the transmission counters.
 
 NOTE: It is necessary to provide a configuration file to start the simulation.
+      Inside wmediumd/cfg-examples you can find multiple config file samples.
+
 
 [rawsocket]
 
 This a very simple Raw socket ping-pong application, developed to test the stability and behaviour of the mac80211_hwsim module. The application is composed from a server and a client. Server shows a counter of answered packets and clients shows sent and received back.
 
 
-	SERVER  ==============================================  CLIENT
+	CLIENT  ===========================================   SERVER
 	
-	FRAME Sent ---------------- wmediumd ----------------->	Frame received 
-								     +
-	Frame rcvd <--------------- wmediumd-------------------	Frame send
+	FRAME sent ---------------- wmediumd ------------->   FRAME rcvd 
+								  +
+	FRAME rcvd <--------------- wmediumd---------------   FRAME sent (ACK)
 								
 								
 
