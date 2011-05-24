@@ -14,7 +14,7 @@
  * enum hwsim_tx_control_flags - flags to describe transmission info/status
  *
  * These flags are used to give the wmediumd extra information in order to
- * modify its behavior for each frame 
+ * modify its behavior for each frame
  *
  * @HWSIM_TX_CTL_REQ_TX_STATUS: require TX status callback for this frame.
  * @HWSIM_TX_CTL_NO_ACK: tell the wmediumd not to wait for an ack
@@ -148,4 +148,3 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 
 
 #define VERSION_NR 1
-

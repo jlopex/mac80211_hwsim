@@ -59,27 +59,27 @@ MODULE_PARM_DESC(fake_hw_scan, "Install fake (no-op) hw-scan handler");
  * and all possible combinations.
  *
  * @HWSIM_REGTEST_DISABLED: No regulatory tests are performed,
- * 	this is the default value.
+ *	this is the default value.
  * @HWSIM_REGTEST_DRIVER_REG_FOLLOW: Used for testing the driver regulatory
  *	hint, only one driver regulatory hint will be sent as such the
- * 	secondary radios are expected to follow.
+ *	secondary radios are expected to follow.
  * @HWSIM_REGTEST_DRIVER_REG_ALL: Used for testing the driver regulatory
- * 	request with all radios reporting the same regulatory domain.
+ *	request with all radios reporting the same regulatory domain.
  * @HWSIM_REGTEST_DIFF_COUNTRY: Used for testing the drivers calling
- * 	different regulatory domains requests. Expected behaviour is for
- * 	an intersection to occur but each device will still use their
- * 	respective regulatory requested domains. Subsequent radios will
- * 	use the resulting intersection.
+ *	different regulatory domains requests. Expected behaviour is for
+ *	an intersection to occur but each device will still use their
+ *	respective regulatory requested domains. Subsequent radios will
+ *	use the resulting intersection.
  * @HWSIM_REGTEST_WORLD_ROAM: Used for testing the world roaming. We accomplish
  *	this by using a custom beacon-capable regulatory domain for the first
  *	radio. All other device world roam.
  * @HWSIM_REGTEST_CUSTOM_WORLD: Used for testing the custom world regulatory
- * 	domain requests. All radios will adhere to this custom world regulatory
- * 	domain.
+ *	domain requests. All radios will adhere to this custom world regulatory
+ *	domain.
  * @HWSIM_REGTEST_CUSTOM_WORLD_2: Used for testing 2 custom world regulatory
- * 	domain requests. The first radio will adhere to the first custom world
- * 	regulatory domain, the second one to the second custom world regulatory
- * 	domain. All other devices will world roam.
+ *	domain requests. The first radio will adhere to the first custom world
+ *	regulatory domain, the second one to the second custom world regulatory
+ *	domain. All other devices will world roam.
  * @HWSIM_REGTEST_STRICT_FOLLOW_: Used for testing strict regulatory domain
  *	settings, only the first radio will send a regulatory domain request
  *	and use strict settings. The rest of the radios are expected to follow.
@@ -93,15 +93,15 @@ MODULE_PARM_DESC(fake_hw_scan, "Install fake (no-op) hw-scan handler");
  *	other devices should follow the intersection created between the
  *	first two.
  * @HWSIM_REGTEST_ALL: Used for testing every possible mix. You will need
- * 	at least 6 radios for a complete test. We will test in this order:
- * 	1 - driver custom world regulatory domain
- * 	2 - second custom world regulatory domain
- * 	3 - first driver regulatory domain request
- * 	4 - second driver regulatory domain request
- * 	5 - strict regulatory domain settings using the third driver regulatory
- * 	    domain request
- * 	6 and on - should follow the intersection of the 3rd, 4rth and 5th radio
- * 	           regulatory requests.
+ *	at least 6 radios for a complete test. We will test in this order:
+ *	1 - driver custom world regulatory domain
+ *	2 - second custom world regulatory domain
+ *	3 - first driver regulatory domain request
+ *	4 - second driver regulatory domain request
+ *	5 - strict regulatory domain settings using the third driver regulatory
+ *	    domain request
+ *	6 and on - should follow the intersection of the 3rd, 4rth and 5th radio
+ *	           regulatory requests.
  */
 enum hwsim_regtest {
 	HWSIM_REGTEST_DISABLED = 0,
@@ -556,7 +556,7 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	for (i = 0; i < IEEE80211_TX_MAX_RATES; i++) {
 		tx_attempts[i].idx = info->status.rates[i].idx;
-		tx_attempts[i].count= info->status.rates[i].count;
+		tx_attempts[i].count = info->status.rates[i].count;
 	}
 
 	NLA_PUT(skb, HWSIM_ATTR_TX_INFO,
@@ -765,7 +765,7 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 	mac80211_hwsim_tx_frame(hw, skb);
-	if(!wmediumd_pid)
+	if (!wmediumd_pid)
 		dev_kfree_skb(skb);
 }
 
@@ -1206,9 +1206,9 @@ static struct device_driver mac80211_hwsim_driver = {
 };
 
 static const struct net_device_ops hwsim_netdev_ops = {
-	.ndo_start_xmit 	= hwsim_mon_xmit,
+	.ndo_start_xmit		= hwsim_mon_xmit,
 	.ndo_change_mtu		= eth_change_mtu,
-	.ndo_set_mac_address 	= eth_mac_addr,
+	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
 
@@ -1396,13 +1396,13 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	int i;
 	bool found = false;
 
-	if(!info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER] ||
+	if (!info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER] ||
 	   !info->attrs[HWSIM_ATTR_FLAGS] ||
 	   !info->attrs[HWSIM_ATTR_COOKIE] ||
 	   !info->attrs[HWSIM_ATTR_TX_INFO])
 		goto out;
 
-	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) != 
+	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) !=
 	    sizeof(struct mac_address))
 		goto out;
 
@@ -1434,7 +1434,7 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
 
-	if (nla_len(info->attrs[HWSIM_ATTR_TX_INFO]) != 
+	if (nla_len(info->attrs[HWSIM_ATTR_TX_INFO]) !=
 	    sizeof(struct hwsim_tx_rate)*IEEE80211_TX_MAX_RATES)
 		goto out;
 
@@ -1480,20 +1480,20 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 	struct mac80211_hwsim_data  *data2;
 	struct ieee80211_rx_status rx_status;
 	struct mac_address *dst;
-	int frame_data_len;	
+	int frame_data_len;
 	char *frame_data;
 	struct sk_buff *skb = NULL;
 
-	if(!info->attrs[HWSIM_ATTR_ADDR_RECEIVER] ||
-	   !info->attrs[HWSIM_ATTR_FRAME] || 
-	   !info->attrs[HWSIM_ATTR_RX_RATE] || 
+	if (!info->attrs[HWSIM_ATTR_ADDR_RECEIVER] ||
+	   !info->attrs[HWSIM_ATTR_FRAME] ||
+	   !info->attrs[HWSIM_ATTR_RX_RATE] ||
 	   !info->attrs[HWSIM_ATTR_SIGNAL])
 		goto out;
 
-	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_RECEIVER]) != 
+	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_RECEIVER]) !=
 	    sizeof(struct mac_address))
 		goto out;
-	
+
 	dst = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_RECEIVER]);
 
