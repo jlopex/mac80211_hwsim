@@ -1402,6 +1402,10 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	   !info->attrs[HWSIM_ATTR_TX_INFO])
 		goto out;
 
+	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) != 
+	    sizeof(struct mac_address))
+		goto out;
+
 	src = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
 	hwsim_flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
@@ -1429,6 +1433,10 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
+
+	if (nla_len(info->attrs[HWSIM_ATTR_TX_INFO]) != 
+	    sizeof(struct hwsim_tx_rate)*IEEE80211_TX_MAX_RATES)
+		goto out;
 
 	tx_attempts = (struct hwsim_tx_rate *)nla_data(
 		       info->attrs[HWSIM_ATTR_TX_INFO]);
@@ -1480,6 +1488,10 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 	   !info->attrs[HWSIM_ATTR_FRAME] || 
 	   !info->attrs[HWSIM_ATTR_RX_RATE] || 
 	   !info->attrs[HWSIM_ATTR_SIGNAL])
+		goto out;
+
+	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_RECEIVER]) != 
+	    sizeof(struct mac_address))
 		goto out;
 	
 	dst = (struct mac_address *)nla_data(
