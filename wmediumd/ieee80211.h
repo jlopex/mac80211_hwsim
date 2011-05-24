@@ -21,14 +21,8 @@
 #ifndef IEEE80211_H_
 #define IEEE80211_H_
 
-#define IEEE80211_TX_CTL_REQ_TX_STATUS 1
-#define IEEE80211_TX_CTL_NO_ACK        (1 << 2)
-#define IEEE80211_TX_STAT_ACK          (1 << 9)
-
-
 #define IEEE80211_AVAILABLE_RATES 12
 #define IEEE80211_MAX_RATES_PER_TX 5
-#define IEEE80211_CB_SIZE 48
 
 struct ieee80211_hdr {
         unsigned char frame_control[2];
@@ -38,13 +32,6 @@ struct ieee80211_hdr {
         unsigned char addr3[6];
         unsigned char seq_ctrl[2];
         unsigned char addr4[6];
-};
-
-struct ieee80211_tx_rate {
-	signed char idx;
-	unsigned char count;
-	unsigned char flags;
-
 };
 
 #endif /* IEEE80211 */

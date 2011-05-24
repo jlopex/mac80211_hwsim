@@ -60,9 +60,9 @@ double generate_random_double()
  *	Send a tx_info frame to the kernel space.
  */
 
-int send_tx_info_frame_nl(struct mac_address *dst,
+int send_tx_info_frame_nl(struct mac_address *src,
 			  unsigned int flags, int signal,
-			  struct ieee80211_tx_rate *tx_attempts, 
+			  struct hwsim_tx_rate *tx_attempts, 
 			  unsigned long cookie)
 {
 
@@ -77,14 +77,14 @@ int send_tx_info_frame_nl(struct mac_address *dst,
 
 	int rc;
 	rc = nla_put(msg, HWSIM_ATTR_ADDR_TRANSMITTER,
-		     sizeof(struct mac_address), dst);
+		     sizeof(struct mac_address), src);
 	rc = nla_put_u32(msg, HWSIM_ATTR_FLAGS, flags);
 	rc = nla_put_u32(msg, HWSIM_ATTR_SIGNAL, signal);
 	rc = nla_put(msg, HWSIM_ATTR_TX_INFO,
 		     IEEE80211_MAX_RATES_PER_TX *
-		     sizeof(struct ieee80211_tx_rate), tx_attempts);
+		     sizeof(struct hwsim_tx_rate), tx_attempts);
 
-	rc = nla_put_u32(msg, HWSIM_ATTR_COOKIE, cookie);
+	rc = nla_put_u64(msg, HWSIM_ATTR_COOKIE, cookie);
 
 	if(rc!=0) {
 		printf("Error filling payload\n");
@@ -103,8 +103,8 @@ out:
  * 	Send a cloned frame to the kernel space.
  */
 
-int send_cloned_frame_msg(struct mac_address *dst, char *data,
-			  int data_len, int rate_idx, int signal)
+int send_cloned_frame_msg(struct mac_address *dst,
+			  char *data, int data_len, int rate_idx, int signal)
 {
 
 	msg = nlmsg_alloc();
@@ -117,7 +117,6 @@ int send_cloned_frame_msg(struct mac_address *dst, char *data,
 		    0, NLM_F_REQUEST, HWSIM_CMD_FRAME, VERSION_NR);
 
 	int rc;
-
 	rc = nla_put(msg, HWSIM_ATTR_ADDR_RECEIVER,
 		     sizeof(struct mac_address), dst);
 	rc = nla_put(msg, HWSIM_ATTR_FRAME, data_len, data);
@@ -184,7 +183,7 @@ int send_frame_msg_apply_prob_and_rate(struct mac_address *src,
  * 	Set a tx_rate struct to not valid values
  */
 
-void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate)
+void set_all_rates_invalid(struct hwsim_tx_rate* tx_rate)
 {
 	int i;
 	/* set up all unused rates to be -1 */
@@ -201,13 +200,13 @@ void set_all_rates_invalid(struct ieee80211_tx_rate* tx_rate)
 
 void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 					int data_len, unsigned int flags,
-					struct ieee80211_tx_rate *tx_rates,
+					struct hwsim_tx_rate *tx_rates,
 					unsigned long cookie)
 {
 
 	struct mac_address *dst;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)data;
-	struct ieee80211_tx_rate tx_attempts[IEEE80211_MAX_RATES_PER_TX];
+	struct hwsim_tx_rate tx_attempts[IEEE80211_MAX_RATES_PER_TX];
 
 	int round = 0, tx_ok = 0, counter, i;
 
@@ -220,7 +219,6 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 
 		/* Set rate index and flags used for this round */
 		tx_attempts[round].idx = tx_rates[round].idx;
-		tx_attempts[round].flags = tx_rates[round].flags;
 
 		while(counter <= tx_rates[round].count && tx_ok !=1 ) {
 
@@ -262,7 +260,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 		acked++;
 		int signal = get_signal_by_rate(tx_attempts[round-1].idx);
 		/* Let's flag this frame as ACK'ed */
-		flags |= IEEE80211_TX_STAT_ACK;
+		flags |= HWSIM_TX_STAT_ACK;
 		send_tx_info_frame_nl(src, flags, signal, tx_attempts, cookie);
 	} else {
 		send_tx_info_frame_nl(src, flags, 0, tx_attempts, cookie);
@@ -294,10 +292,11 @@ static int process_messages_cb(struct nl_msg *msg, void *arg)
 			char* data = (char*)nla_data(attrs[HWSIM_ATTR_FRAME]);
 			unsigned int flags =
 				nla_get_u32(attrs[HWSIM_ATTR_FLAGS]);
-			struct ieee80211_tx_rate *tx_rates =
-				(struct ieee80211_tx_rate*)
+		//	printf("flags: %d\n", flags);
+			struct hwsim_tx_rate *tx_rates =
+				(struct hwsim_tx_rate*)
 				nla_data(attrs[HWSIM_ATTR_TX_INFO]);
-			unsigned long cookie = nla_get_u32(attrs[HWSIM_ATTR_COOKIE]);
+			unsigned long cookie = nla_get_u64(attrs[HWSIM_ATTR_COOKIE]);
 			received++;
 
 			printf("frame [%d] length:%d\n",received,data_len);

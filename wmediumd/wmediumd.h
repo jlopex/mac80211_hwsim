@@ -21,6 +21,9 @@
 #ifndef WMEDIUMD_H_
 #define WMEDIUMD_H_
 
+#define HWSIM_TX_CTL_REQ_TX_STATUS	1
+#define HWSIM_TX_CTL_NO_ACK		(1 << 1)
+#define HWSIM_TX_STAT_ACK		(1 << 2)
 
 #define HWSIM_CMD_REGISTER 1
 #define HWSIM_CMD_FRAME 2
@@ -37,5 +40,9 @@
 #define HWSIM_ATTR_MAX 8
 #define VERSION_NR 1
 
+struct hwsim_tx_rate {
+        signed char idx;
+        unsigned char count;
+};
 
 #endif /* WMEDIUMD_H_ */

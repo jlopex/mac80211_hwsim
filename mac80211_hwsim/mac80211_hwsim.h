@@ -11,6 +11,23 @@
 #include <net/mac80211.h>
 
 /**
+ * enum hwsim_tx_control_flags - flags to describe transmission info/status
+ *
+ * These flags are used to give the wmediumd extra information in order to
+ * modify its behavior for each frame 
+ *
+ * @HWSIM_TX_CTL_REQ_TX_STATUS: require TX status callback for this frame.
+ * @HWSIM_TX_CTL_NO_ACK: tell the wmediumd not to wait for an ack
+ * @HWSIM_TX_STAT_ACK: Frame was acknowledged
+ *
+ */
+enum hwsim_tx_control_flags {
+	HWSIM_TX_CTL_REQ_TX_STATUS		= BIT(0),
+	HWSIM_TX_CTL_NO_ACK			= BIT(1),
+	HWSIM_TX_STAT_ACK			= BIT(2),
+};
+
+/**
  * DOC: Frame transmission/registration support
  *
  * Frame transmission and registration support exists to allow userspace
@@ -94,6 +111,24 @@ enum {
 };
 #define HWSIM_ATTR_MAX (__HWSIM_ATTR_MAX - 1)
 
+/**
+ * struct hwsim_tx_rate - rate selection/status
+ *
+ * @idx: rate index to attempt to send with
+ * @count: number of tries in this rate before going to the next rate
+ *
+ * A value of -1 for @idx indicates an invalid rate and, if used
+ * in an array of retry rates, that no more rates should be tried.
+ *
+ * When used for transmit status reporting, the driver should
+ * always report the rate and number of retries used.
+ *
+ */
+struct hwsim_tx_rate {
+	s8 idx;
+	u8 count;
+} __packed;
+
 static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 	[HWSIM_ATTR_ADDR_RECEIVER] = { .type = NLA_UNSPEC,
 				       .len = 6*sizeof(u8) },
@@ -106,9 +141,11 @@ static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
 	[HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
 	[HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
 				 .len = IEEE80211_TX_MAX_RATES*sizeof(
-					struct ieee80211_tx_rate)},
-	[HWSIM_ATTR_COOKIE] = { .type = NLA_U32 },
+					struct hwsim_tx_rate)},
+	[HWSIM_ATTR_COOKIE] = { .type = NLA_U64 },
 };
+
+
 
 #define VERSION_NR 1
 
