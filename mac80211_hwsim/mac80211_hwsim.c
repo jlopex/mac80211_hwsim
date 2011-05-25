@@ -37,7 +37,6 @@ MODULE_DESCRIPTION("Software simulator of 802.11 radio(s) for mac80211");
 MODULE_LICENSE("GPL");
 
 int wmediumd_pid;
-
 static int radios = 2;
 module_param(radios, int, 0444);
 MODULE_PARM_DESC(radios, "Number of simulated radios");
@@ -59,27 +58,27 @@ MODULE_PARM_DESC(fake_hw_scan, "Install fake (no-op) hw-scan handler");
  * and all possible combinations.
  *
  * @HWSIM_REGTEST_DISABLED: No regulatory tests are performed,
- *	this is the default value.
+ * 	this is the default value.
  * @HWSIM_REGTEST_DRIVER_REG_FOLLOW: Used for testing the driver regulatory
  *	hint, only one driver regulatory hint will be sent as such the
- *	secondary radios are expected to follow.
+ * 	secondary radios are expected to follow.
  * @HWSIM_REGTEST_DRIVER_REG_ALL: Used for testing the driver regulatory
- *	request with all radios reporting the same regulatory domain.
+ * 	request with all radios reporting the same regulatory domain.
  * @HWSIM_REGTEST_DIFF_COUNTRY: Used for testing the drivers calling
- *	different regulatory domains requests. Expected behaviour is for
- *	an intersection to occur but each device will still use their
- *	respective regulatory requested domains. Subsequent radios will
- *	use the resulting intersection.
+ * 	different regulatory domains requests. Expected behaviour is for
+ * 	an intersection to occur but each device will still use their
+ * 	respective regulatory requested domains. Subsequent radios will
+ * 	use the resulting intersection.
  * @HWSIM_REGTEST_WORLD_ROAM: Used for testing the world roaming. We accomplish
  *	this by using a custom beacon-capable regulatory domain for the first
  *	radio. All other device world roam.
  * @HWSIM_REGTEST_CUSTOM_WORLD: Used for testing the custom world regulatory
- *	domain requests. All radios will adhere to this custom world regulatory
- *	domain.
+ * 	domain requests. All radios will adhere to this custom world regulatory
+ * 	domain.
  * @HWSIM_REGTEST_CUSTOM_WORLD_2: Used for testing 2 custom world regulatory
- *	domain requests. The first radio will adhere to the first custom world
- *	regulatory domain, the second one to the second custom world regulatory
- *	domain. All other devices will world roam.
+ * 	domain requests. The first radio will adhere to the first custom world
+ * 	regulatory domain, the second one to the second custom world regulatory
+ * 	domain. All other devices will world roam.
  * @HWSIM_REGTEST_STRICT_FOLLOW_: Used for testing strict regulatory domain
  *	settings, only the first radio will send a regulatory domain request
  *	and use strict settings. The rest of the radios are expected to follow.
@@ -93,15 +92,15 @@ MODULE_PARM_DESC(fake_hw_scan, "Install fake (no-op) hw-scan handler");
  *	other devices should follow the intersection created between the
  *	first two.
  * @HWSIM_REGTEST_ALL: Used for testing every possible mix. You will need
- *	at least 6 radios for a complete test. We will test in this order:
- *	1 - driver custom world regulatory domain
- *	2 - second custom world regulatory domain
- *	3 - first driver regulatory domain request
- *	4 - second driver regulatory domain request
- *	5 - strict regulatory domain settings using the third driver regulatory
- *	    domain request
- *	6 and on - should follow the intersection of the 3rd, 4rth and 5th radio
- *	           regulatory requests.
+ * 	at least 6 radios for a complete test. We will test in this order:
+ * 	1 - driver custom world regulatory domain
+ * 	2 - second custom world regulatory domain
+ * 	3 - first driver regulatory domain request
+ * 	4 - second driver regulatory domain request
+ * 	5 - strict regulatory domain settings using the third driver regulatory
+ * 	    domain request
+ * 	6 and on - should follow the intersection of the 3rd, 4rth and 5th radio
+ * 	           regulatory requests.
  */
 enum hwsim_regtest {
 	HWSIM_REGTEST_DISABLED = 0,
@@ -311,7 +310,6 @@ struct mac80211_hwsim_data {
 	struct dentry *debugfs_ps;
 
 	struct sk_buff_head pending;	/* packets pending */
-
 	/*
 	 * Only radios in the same group can communicate together (the
 	 * channel has to match too). Each bit represents a group. A
@@ -332,7 +330,7 @@ struct hwsim_radiotap_hdr {
 	__le16 rt_chbitmask;
 } __packed;
 
-/* MAC80211_HWSIM netlink family */
+/* MAC80211_HWSIM netlinf family */
 static struct genl_family hwsim_genl_family = {
 	.id = GENL_ID_GENERATE,
 	.hdrsize = 0,
@@ -497,7 +495,7 @@ static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
 }
 
 static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
-				    struct sk_buff *my_skb)
+				       struct sk_buff *my_skb)
 {
 	struct sk_buff *skb;
 	struct mac80211_hwsim_data *data = hw->priv;
@@ -581,19 +579,15 @@ static bool mac80211_hwsim_tx_frame_no_nl(struct ieee80211_hw *hw,
 					  struct sk_buff *skb)
 {
 	struct mac80211_hwsim_data *data = hw->priv, *data2;
+	bool ack = false;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	struct ieee80211_rx_status rx_status;
-
-	bool ack = false;
 
 	if (data->idle) {
 		wiphy_debug(hw->wiphy, "Trying to TX when idle - reject\n");
 		return false;
 	}
-
-	if (data->ps != PS_DISABLED)
-		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
 
 	memset(&rx_status, 0, sizeof(rx_status));
 	/* TODO: set mactime */
@@ -602,6 +596,9 @@ static bool mac80211_hwsim_tx_frame_no_nl(struct ieee80211_hw *hw,
 	rx_status.rate_idx = info->control.rates[0].idx;
 	/* TODO: simulate real signal strength (and optional packet loss) */
 	rx_status.signal = data->power_level - 50;
+
+	if (data->ps != PS_DISABLED)
+		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
 
 	/* release the skb's source info */
 	skb_orphan(skb);
@@ -629,10 +626,9 @@ static bool mac80211_hwsim_tx_frame_no_nl(struct ieee80211_hw *hw,
 		if (nskb == NULL)
 			continue;
 
-		memcpy(IEEE80211_SKB_RXCB(nskb), &rx_status, sizeof(rx_status));
-
 		if (mac80211_hwsim_addr_match(data2, hdr->addr1))
 			ack = true;
+		memcpy(IEEE80211_SKB_RXCB(nskb), &rx_status, sizeof(rx_status));
 		ieee80211_rx_irqsafe(data2->hw, nskb);
 	}
 	spin_unlock(&hwsim_radio_lock);
@@ -665,11 +661,11 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 
 	ack = mac80211_hwsim_tx_frame(hw, skb);
 
-	/* wmediumd mode*/
+	/* wmediumd mode check */
 	if (wmediumd_pid)
 		return;
 
-	/* NO wmediumd, normal mac80211_hwsim behaviour*/
+	/* NO wmediumd detected, perfect medium simulation */
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 		mac80211_hwsim_monitor_ack(hw, hdr->addr2);
@@ -1082,7 +1078,7 @@ static int mac80211_hwsim_ampdu_action(struct ieee80211_hw *hw,
 
 static void mac80211_hwsim_flush(struct ieee80211_hw *hw, bool drop)
 {
-	/* Not implemented, queues only implemented on kernel side */
+	/* Not implemented, queues only on kernel side */
 }
 
 struct hw_scan_done {
@@ -1206,9 +1202,9 @@ static struct device_driver mac80211_hwsim_driver = {
 };
 
 static const struct net_device_ops hwsim_netdev_ops = {
-	.ndo_start_xmit		= hwsim_mon_xmit,
+	.ndo_start_xmit 	= hwsim_mon_xmit,
 	.ndo_change_mtu		= eth_change_mtu,
-	.ndo_set_mac_address	= eth_mac_addr,
+	.ndo_set_mac_address 	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
 
@@ -1357,6 +1353,9 @@ static int hwsim_fops_group_write(void *dat, u64 val)
 	return 0;
 }
 
+DEFINE_SIMPLE_ATTRIBUTE(hwsim_fops_group,
+			hwsim_fops_group_read, hwsim_fops_group_write,
+			"%llx\n");
 
 struct mac80211_hwsim_data *get_hwsim_data_ref_from_addr(
 			     struct mac_address *addr)
@@ -1550,10 +1549,9 @@ static int hwsim_register_received_nl(struct sk_buff *skb_2,
 	wmediumd_pid = info->snd_pid;
 
 	printk(KERN_DEBUG "mac80211_hwsim: received a REGISTER, "
-	       "switching to wmediumd mode with pid %d\n", info->snd_pid);
+	"switching to wmediumd mode with pid %d\n", info->snd_pid);
 
 	return 0;
-
 out:
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
 	return -1;
@@ -1643,11 +1641,6 @@ static void hwsim_exit_netlink(void)
 		       "unregister family %i\n", ret);
 }
 
-
-DEFINE_SIMPLE_ATTRIBUTE(hwsim_fops_group,
-			hwsim_fops_group_read, hwsim_fops_group_write,
-			"%llx\n");
-
 static int __init init_mac80211_hwsim(void)
 {
 	int i, err = 0;
@@ -1698,7 +1691,6 @@ static int __init init_mac80211_hwsim(void)
 			goto failed_drvdata;
 		}
 		data->dev->driver = &mac80211_hwsim_driver;
-
 		skb_queue_head_init(&data->pending);
 
 		SET_IEEE80211_DEV(hw, data->dev);
@@ -1781,7 +1773,7 @@ static int __init init_mac80211_hwsim(void)
 		data->group = 1;
 		mutex_init(&data->mutex);
 
-		/* Enable frame retransmission mechanism for a lossy channel */
+		/* Enable frame retransmissions for lossy channels */
 		hw->max_rates = 4;
 		hw->max_rate_tries = 11;
 
@@ -1941,7 +1933,7 @@ static int __init init_mac80211_hwsim(void)
 	return 0;
 
 failed_nl:
-	printk(KERN_DEBUG "mac80211_hwsim: failed initializing netlink\n");
+	printk(KERN_DEBUG "mac_80211_hwsim: failed initializing netlink\n");
 	return err;
 
 failed_mon:
