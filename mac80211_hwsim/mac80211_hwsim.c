@@ -335,9 +335,28 @@ static struct genl_family hwsim_genl_family = {
 	.id = GENL_ID_GENERATE,
 	.hdrsize = 0,
 	.name = "MAC80211_HWSIM",
-	.version = VERSION_NR,
+	.version = 1,
 	.maxattr = HWSIM_ATTR_MAX,
 };
+
+/* MAC80211_HWSIM netlink policy */
+
+static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
+        [HWSIM_ATTR_ADDR_RECEIVER] = { .type = NLA_UNSPEC,
+                                       .len = 6*sizeof(u8) },
+        [HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
+                                          .len = 6*sizeof(u8) },
+        [HWSIM_ATTR_FRAME] = { .type = NLA_BINARY,
+                               .len = IEEE80211_MAX_DATA_LEN },
+        [HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
+        [HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
+        [HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
+        [HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
+                                 .len = IEEE80211_TX_MAX_RATES*sizeof(
+                                        struct hwsim_tx_rate)},
+        [HWSIM_ATTR_COOKIE] = { .type = NLA_U64 },
+};
+
 
 static netdev_tx_t hwsim_mon_xmit(struct sk_buff *skb,
 					struct net_device *dev)
@@ -1401,10 +1420,6 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	   !info->attrs[HWSIM_ATTR_TX_INFO])
 		goto out;
 
-	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) !=
-	    sizeof(struct mac_address))
-		goto out;
-
 	src = (struct mac_address *)nla_data(
 				   info->attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
 	hwsim_flags = nla_get_u32(info->attrs[HWSIM_ATTR_FLAGS]);
@@ -1432,10 +1447,6 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 
 	/* Tx info received because the frame was broadcasted on user space,
 	 so we get all the necessary info: tx attempts and skb control buff */
-
-	if (nla_len(info->attrs[HWSIM_ATTR_TX_INFO]) !=
-	    sizeof(struct hwsim_tx_rate)*IEEE80211_TX_MAX_RATES)
-		goto out;
 
 	tx_attempts = (struct hwsim_tx_rate *)nla_data(
 		       info->attrs[HWSIM_ATTR_TX_INFO]);
@@ -1468,7 +1479,7 @@ static int hwsim_tx_info_frame_received_nl(struct sk_buff *skb_2,
 	ieee80211_tx_status_irqsafe(data2->hw, skb);
 	return 0;
 out:
-	return -1;
+	return -EINVAL;
 
 }
 
@@ -1487,10 +1498,6 @@ static int hwsim_cloned_frame_received_nl(struct sk_buff *skb_2,
 	   !info->attrs[HWSIM_ATTR_FRAME] ||
 	   !info->attrs[HWSIM_ATTR_RX_RATE] ||
 	   !info->attrs[HWSIM_ATTR_SIGNAL])
-		goto out;
-
-	if (nla_len(info->attrs[HWSIM_ATTR_ADDR_RECEIVER]) !=
-	    sizeof(struct mac_address))
 		goto out;
 
 	dst = (struct mac_address *)nla_data(
@@ -1537,7 +1544,7 @@ err:
 	goto out;
 out:
 	dev_kfree_skb(skb);
-	return -1;
+	return -EINVAL;
 }
 
 static int hwsim_register_received_nl(struct sk_buff *skb_2,
@@ -1554,31 +1561,25 @@ static int hwsim_register_received_nl(struct sk_buff *skb_2,
 	return 0;
 out:
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
-	return -1;
+	return -EINVAL;
 }
 
 /* Generic Netlink operations array */
 static struct genl_ops hwsim_ops[] = {
 	{
 		.cmd = HWSIM_CMD_REGISTER,
-		.flags = 0,
 		.policy = hwsim_genl_policy,
 		.doit = hwsim_register_received_nl,
-		.dumpit = NULL,
 	},
 	{
 		.cmd = HWSIM_CMD_FRAME,
-		.flags = 0,
 		.policy = hwsim_genl_policy,
 		.doit = hwsim_cloned_frame_received_nl,
-		.dumpit = NULL,
 	},
 	{
 		.cmd = HWSIM_CMD_TX_INFO_FRAME,
-		.flags = 0,
 		.policy = hwsim_genl_policy,
 		.doit = hwsim_tx_info_frame_received_nl,
-		.dumpit = NULL,
 	},
 };
 
@@ -1624,7 +1625,7 @@ static int hwsim_init_netlink(void)
 
 failure:
 	printk(KERN_DEBUG "mac80211_hwsim: error occured in %s\n", __func__);
-	return -1;
+	return -EINVAL;
 }
 
 static void hwsim_exit_netlink(void)

@@ -129,22 +129,3 @@ struct hwsim_tx_rate {
 	u8 count;
 } __packed;
 
-static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
-	[HWSIM_ATTR_ADDR_RECEIVER] = { .type = NLA_UNSPEC,
-				       .len = 6*sizeof(u8) },
-	[HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
-					  .len = 6*sizeof(u8) },
-	[HWSIM_ATTR_FRAME] = { .type = NLA_BINARY,
-			       .len = IEEE80211_MAX_DATA_LEN },
-	[HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
-	[HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
-	[HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
-	[HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
-				 .len = IEEE80211_TX_MAX_RATES*sizeof(
-					struct hwsim_tx_rate)},
-	[HWSIM_ATTR_COOKIE] = { .type = NLA_U64 },
-};
-
-
-
-#define VERSION_NR 1
