@@ -342,21 +342,20 @@ static struct genl_family hwsim_genl_family = {
 /* MAC80211_HWSIM netlink policy */
 
 static struct nla_policy hwsim_genl_policy[HWSIM_ATTR_MAX + 1] = {
-        [HWSIM_ATTR_ADDR_RECEIVER] = { .type = NLA_UNSPEC,
-                                       .len = 6*sizeof(u8) },
-        [HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
-                                          .len = 6*sizeof(u8) },
-        [HWSIM_ATTR_FRAME] = { .type = NLA_BINARY,
-                               .len = IEEE80211_MAX_DATA_LEN },
-        [HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
-        [HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
-        [HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
-        [HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
-                                 .len = IEEE80211_TX_MAX_RATES*sizeof(
-                                        struct hwsim_tx_rate)},
-        [HWSIM_ATTR_COOKIE] = { .type = NLA_U64 },
+	[HWSIM_ATTR_ADDR_RECEIVER] = { .type = NLA_UNSPEC,
+				       .len = 6*sizeof(u8) },
+	[HWSIM_ATTR_ADDR_TRANSMITTER] = { .type = NLA_UNSPEC,
+					  .len = 6*sizeof(u8) },
+	[HWSIM_ATTR_FRAME] = { .type = NLA_BINARY,
+			       .len = IEEE80211_MAX_DATA_LEN },
+	[HWSIM_ATTR_FLAGS] = { .type = NLA_U32 },
+	[HWSIM_ATTR_RX_RATE] = { .type = NLA_U32 },
+	[HWSIM_ATTR_SIGNAL] = { .type = NLA_U32 },
+	[HWSIM_ATTR_TX_INFO] = { .type = NLA_UNSPEC,
+				 .len = IEEE80211_TX_MAX_RATES*sizeof(
+					struct hwsim_tx_rate)},
+	[HWSIM_ATTR_COOKIE] = { .type = NLA_U64 },
 };
-
 
 static netdev_tx_t hwsim_mon_xmit(struct sk_buff *skb,
 					struct net_device *dev)
@@ -514,7 +513,8 @@ static bool mac80211_hwsim_addr_match(struct mac80211_hwsim_data *data,
 }
 
 static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
-				       struct sk_buff *my_skb)
+				       struct sk_buff *my_skb,
+				       int dst_pid)
 {
 	struct sk_buff *skb;
 	struct mac80211_hwsim_data *data = hw->priv;
@@ -584,7 +584,7 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 	NLA_PUT_U64(skb, HWSIM_ATTR_COOKIE, (unsigned long) my_skb);
 
 	genlmsg_end(skb, msg_head);
-	genlmsg_unicast(&init_net, skb, wmediumd_pid);
+	genlmsg_unicast(&init_net, skb, dst_pid);
 
 	/* Enqueue the packet */
 	skb_queue_tail(&data->pending, my_skb);
@@ -655,20 +655,11 @@ static bool mac80211_hwsim_tx_frame_no_nl(struct ieee80211_hw *hw,
 	return ack;
 }
 
-static bool mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
-				    struct sk_buff *skb)
-{
-	if (wmediumd_pid) {
-		mac80211_hwsim_tx_frame_nl(hw, skb);
-		return true;
-	} else
-		return mac80211_hwsim_tx_frame_no_nl(hw, skb);
-}
-
 static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
+	int _pid;
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 
@@ -677,13 +668,15 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 		dev_kfree_skb(skb);
 		return;
 	}
-
-	ack = mac80211_hwsim_tx_frame(hw, skb);
+	_pid = wmediumd_pid;
 
 	/* wmediumd mode check */
-	if (wmediumd_pid)
+	if (_pid) {
+		mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
 		return;
-
+	} else {
+		ack = mac80211_hwsim_tx_frame_no_nl(hw, skb);
+	}
 	/* NO wmediumd detected, perfect medium simulation */
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
@@ -765,6 +758,7 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	struct ieee80211_hw *hw = arg;
 	struct sk_buff *skb;
 	struct ieee80211_tx_info *info;
+	int _pid;
 
 	hwsim_check_magic(vif);
 
@@ -779,9 +773,17 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	info = IEEE80211_SKB_CB(skb);
 
 	mac80211_hwsim_monitor_rx(hw, skb);
-	mac80211_hwsim_tx_frame(hw, skb);
-	if (!wmediumd_pid)
+
+	/* wmediumd mode check */
+	_pid = wmediumd_pid;
+
+	if (_pid) {
+		mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
+		return;
+	} else {
+		mac80211_hwsim_tx_frame_no_nl(hw, skb);
 		dev_kfree_skb(skb);
+	}
 }
 
 
@@ -1245,6 +1247,7 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_pspoll *pspoll;
+	int _pid;
 
 	if (!vp->assoc)
 		return;
@@ -1263,10 +1266,21 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	pspoll->aid = cpu_to_le16(0xc000 | vp->aid);
 	memcpy(pspoll->bssid, vp->bssid, ETH_ALEN);
 	memcpy(pspoll->ta, mac, ETH_ALEN);
-	if (!mac80211_hwsim_tx_frame(data->hw, skb))
-		printk(KERN_DEBUG "%s: PS-Poll frame not ack'ed\n", __func__);
-	if (!wmediumd_pid)
+
+	/* wmediumd mode check */
+	_pid = wmediumd_pid;
+
+	if (_pid) {
+		mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
+		return;
+	} else {
+		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
+			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
+				__func__);
 		dev_kfree_skb(skb);
+	}
+
+
 }
 
 
@@ -1276,6 +1290,7 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_hdr *hdr;
+	int _pid;
 
 	if (!vp->assoc)
 		return;
@@ -1295,10 +1310,20 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	memcpy(hdr->addr1, vp->bssid, ETH_ALEN);
 	memcpy(hdr->addr2, mac, ETH_ALEN);
 	memcpy(hdr->addr3, vp->bssid, ETH_ALEN);
-	if (!mac80211_hwsim_tx_frame(data->hw, skb))
-		printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n", __func__);
-	if (!wmediumd_pid)
+
+	/* wmediumd mode check */
+	_pid = wmediumd_pid;
+
+	if (_pid) {
+		mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
+		return;
+	} else {
+		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
+			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
+				__func__);
 		dev_kfree_skb(skb);
+	}
+
 }
 
 
