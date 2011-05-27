@@ -37,10 +37,10 @@ The user application is responsible for handling the frames sent from the kernel
 
 It will create a new FILE with the a sample configuration schema.
 
-- To launch the application in simulation mode:
+- To launch the application in simulation mode (superuser is required):
 
  $ cd wmediumd
- $ ./wmediumd -c [FILE]
+ $ sudo ./wmediumd -c [FILE]
 
 Once launch it will show all the probability matrix and the transmission counters.
 

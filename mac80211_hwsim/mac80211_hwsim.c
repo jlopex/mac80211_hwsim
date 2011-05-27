@@ -1595,6 +1595,7 @@ static struct genl_ops hwsim_ops[] = {
 		.cmd = HWSIM_CMD_REGISTER,
 		.policy = hwsim_genl_policy,
 		.doit = hwsim_register_received_nl,
+		.flags = GENL_ADMIN_PERM,
 	},
 	{
 		.cmd = HWSIM_CMD_FRAME,
