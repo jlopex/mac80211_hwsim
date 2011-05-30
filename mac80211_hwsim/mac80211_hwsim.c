@@ -659,7 +659,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
-	int _pid;
+	bool send_to_nl;
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 
@@ -668,12 +668,10 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 		dev_kfree_skb(skb);
 		return;
 	}
-	_pid = wmediumd_pid;
-
+	send_to_nl = !!wmediumd_pid;
 	/* wmediumd mode check */
-	if (_pid) {
-		mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
-		return;
+	if (send_to_nl) {
+		return mac80211_hwsim_tx_frame_nl(hw, skb, wmediumd_pid);
 	} else {
 		ack = mac80211_hwsim_tx_frame_no_nl(hw, skb);
 	}
@@ -758,7 +756,7 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	struct ieee80211_hw *hw = arg;
 	struct sk_buff *skb;
 	struct ieee80211_tx_info *info;
-	int _pid;
+	bool send_to_nl;
 
 	hwsim_check_magic(vif);
 
@@ -775,11 +773,10 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	mac80211_hwsim_monitor_rx(hw, skb);
 
 	/* wmediumd mode check */
-	_pid = wmediumd_pid;
+	send_to_nl = !!wmediumd_pid;
 
-	if (_pid) {
-		mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
-		return;
+	if (send_to_nl) {
+		return mac80211_hwsim_tx_frame_nl(hw, skb, wmediumd_pid);
 	} else {
 		mac80211_hwsim_tx_frame_no_nl(hw, skb);
 		dev_kfree_skb(skb);
@@ -1247,7 +1244,7 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_pspoll *pspoll;
-	int _pid;
+	bool send_to_nl;
 
 	if (!vp->assoc)
 		return;
@@ -1268,11 +1265,10 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	memcpy(pspoll->ta, mac, ETH_ALEN);
 
 	/* wmediumd mode check */
-	_pid = wmediumd_pid;
+	send_to_nl = !!wmediumd_pid;
 
-	if (_pid) {
-		mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
-		return;
+	if (send_to_nl) {
+		return mac80211_hwsim_tx_frame_nl(data->hw, skb, wmediumd_pid);
 	} else {
 		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
 			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
@@ -1290,7 +1286,7 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_hdr *hdr;
-	int _pid;
+	bool send_to_nl;
 
 	if (!vp->assoc)
 		return;
@@ -1312,11 +1308,10 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	memcpy(hdr->addr3, vp->bssid, ETH_ALEN);
 
 	/* wmediumd mode check */
-	_pid = wmediumd_pid;
+	send_to_nl = !!wmediumd_pid;
 
-	if (_pid) {
-		mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
-		return;
+	if (send_to_nl) {
+		return mac80211_hwsim_tx_frame_nl(data->hw, skb, wmediumd_pid);
 	} else {
 		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
 			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
