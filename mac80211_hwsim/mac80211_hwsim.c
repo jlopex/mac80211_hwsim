@@ -676,7 +676,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 
 	/* NO wmediumd detected, perfect medium simulation */
 	ack = mac80211_hwsim_tx_frame_no_nl(hw, skb);
-	
+
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 		mac80211_hwsim_monitor_ack(hw, hdr->addr2);
@@ -1271,7 +1271,7 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 		return mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
 
 	if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
-		printk(KERN_DEBUG "%s: ps-poll frame not ack'ed\n", __func__);
+		printk(KERN_DEBUG "%s: PS-poll frame not ack'ed\n", __func__);
 	dev_kfree_skb(skb);
 }
 
