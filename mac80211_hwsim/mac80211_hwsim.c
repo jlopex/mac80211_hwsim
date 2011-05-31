@@ -533,7 +533,6 @@ static void mac80211_hwsim_tx_frame_nl(struct ieee80211_hw *hw,
 
 	if (data->ps != PS_DISABLED)
 		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
-
 	/* If the queue contains MAX_QUEUE skb's drop some */
 	if (skb_queue_len(&data->pending) >= MAX_QUEUE) {
 		/* Droping until WARN_QUEUE level */
@@ -659,7 +658,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	bool ack;
 	struct ieee80211_tx_info *txi;
-	bool send_to_nl;
+	int _pid;
 
 	mac80211_hwsim_monitor_rx(hw, skb);
 
@@ -668,14 +667,16 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw, struct sk_buff *skb)
 		dev_kfree_skb(skb);
 		return;
 	}
-	send_to_nl = !!wmediumd_pid;
+
 	/* wmediumd mode check */
-	if (send_to_nl) {
-		return mac80211_hwsim_tx_frame_nl(hw, skb, wmediumd_pid);
-	} else {
-		ack = mac80211_hwsim_tx_frame_no_nl(hw, skb);
-	}
+	_pid = wmediumd_pid;
+
+	if (_pid)
+		return mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
+
 	/* NO wmediumd detected, perfect medium simulation */
+	ack = mac80211_hwsim_tx_frame_no_nl(hw, skb);
+	
 	if (ack && skb->len >= 16) {
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 		mac80211_hwsim_monitor_ack(hw, hdr->addr2);
@@ -756,7 +757,7 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	struct ieee80211_hw *hw = arg;
 	struct sk_buff *skb;
 	struct ieee80211_tx_info *info;
-	bool send_to_nl;
+	int _pid;
 
 	hwsim_check_magic(vif);
 
@@ -773,14 +774,13 @@ static void mac80211_hwsim_beacon_tx(void *arg, u8 *mac,
 	mac80211_hwsim_monitor_rx(hw, skb);
 
 	/* wmediumd mode check */
-	send_to_nl = !!wmediumd_pid;
+	_pid = wmediumd_pid;
 
-	if (send_to_nl) {
-		return mac80211_hwsim_tx_frame_nl(hw, skb, wmediumd_pid);
-	} else {
-		mac80211_hwsim_tx_frame_no_nl(hw, skb);
-		dev_kfree_skb(skb);
-	}
+	if (_pid)
+		return mac80211_hwsim_tx_frame_nl(hw, skb, _pid);
+
+	mac80211_hwsim_tx_frame_no_nl(hw, skb);
+	dev_kfree_skb(skb);
 }
 
 
@@ -1244,7 +1244,7 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_pspoll *pspoll;
-	bool send_to_nl;
+	int _pid;
 
 	if (!vp->assoc)
 		return;
@@ -1265,18 +1265,14 @@ static void hwsim_send_ps_poll(void *dat, u8 *mac, struct ieee80211_vif *vif)
 	memcpy(pspoll->ta, mac, ETH_ALEN);
 
 	/* wmediumd mode check */
-	send_to_nl = !!wmediumd_pid;
+	_pid = wmediumd_pid;
 
-	if (send_to_nl) {
-		return mac80211_hwsim_tx_frame_nl(data->hw, skb, wmediumd_pid);
-	} else {
-		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
-			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
-				__func__);
-		dev_kfree_skb(skb);
-	}
+	if (_pid)
+		return mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
 
-
+	if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
+		printk(KERN_DEBUG "%s: ps-poll frame not ack'ed\n", __func__);
+	dev_kfree_skb(skb);
 }
 
 
@@ -1286,7 +1282,7 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_hdr *hdr;
-	bool send_to_nl;
+	bool _pid;
 
 	if (!vp->assoc)
 		return;
@@ -1308,17 +1304,14 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	memcpy(hdr->addr3, vp->bssid, ETH_ALEN);
 
 	/* wmediumd mode check */
-	send_to_nl = !!wmediumd_pid;
+	_pid = wmediumd_pid;
 
-	if (send_to_nl) {
-		return mac80211_hwsim_tx_frame_nl(data->hw, skb, wmediumd_pid);
-	} else {
-		if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
-			printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n",
-				__func__);
-		dev_kfree_skb(skb);
-	}
+	if (_pid)
+		return mac80211_hwsim_tx_frame_nl(data->hw, skb, _pid);
 
+	if (!mac80211_hwsim_tx_frame_no_nl(data->hw, skb))
+		printk(KERN_DEBUG "%s: nullfunc frame not ack'ed\n", __func__);
+	dev_kfree_skb(skb);
 }
 
 
