@@ -8,6 +8,9 @@
  * published by the Free Software Foundation.
  */
 
+#ifndef __MAC80211_HWSIM_H
+#define __MAC80211_HWSIM_H
+
 #include <net/mac80211.h>
 
 /**
@@ -129,3 +132,4 @@ struct hwsim_tx_rate {
 	u8 count;
 } __packed;
 
+#endif /* __MAC80211_HWSIM_H */

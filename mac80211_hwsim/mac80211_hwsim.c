@@ -1282,7 +1282,7 @@ static void hwsim_send_nullfunc(struct mac80211_hwsim_data *data, u8 *mac,
 	struct hwsim_vif_priv *vp = (void *)vif->drv_priv;
 	struct sk_buff *skb;
 	struct ieee80211_hdr *hdr;
-	bool _pid;
+	int _pid;
 
 	if (!vp->assoc)
 		return;
