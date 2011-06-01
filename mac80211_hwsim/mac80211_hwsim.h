@@ -11,8 +11,6 @@
 #ifndef __MAC80211_HWSIM_H
 #define __MAC80211_HWSIM_H
 
-#include <net/mac80211.h>
-
 /**
  * enum hwsim_tx_control_flags - flags to describe transmission info/status
  *
