@@ -1,5 +1,5 @@
 /*
- *  wconfig - visual configuration tool for wmediumd simulator
+ *	wconfig - visual configuration tool for wmediumd simulator
  *	Copyright (C) 2011  Javier Lopez (jlopex@gmail.com)
  *
  *	This program is free software; you can redistribute it and/or
