@@ -74,7 +74,10 @@ This a very simple Raw socket ping-pong application, developed to test the stabi
 
 [wconfig]
 
+This is an extra tool based on JUNG framework to support the generation of advanced topologies for wireless medium daemon.
+
 To launch the application:
+
  $ cd wconfig
  $ java - jar wconfig.jar 
 
