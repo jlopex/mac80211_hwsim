@@ -40,6 +40,9 @@ public class MyLink {
 		return "Link: "+ id + " with Ploss " + pLoss;
 	}
 
+	public void setPloss(double[] pLoss) {
+		this.pLoss = pLoss;
+	}
 
 	public void setPloss(int pos, double value) {
 		this.pLoss[pos] = value;

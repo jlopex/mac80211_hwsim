@@ -24,6 +24,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.geom.Point2D;
 
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -31,9 +32,11 @@ import javax.swing.JPopupMenu;
 import org.wmediumd.dialogs.EdgePropertyDialog;
 import org.wmediumd.entities.MyLink;
 import org.wmediumd.entities.MyNode;
+import org.wmediumd.graphs.CustomSparseGraph;
 import org.wmediumd.listeners.EdgeMenuListener;
 import org.wmediumd.listeners.MenuPointListener;
 
+import edu.uci.ics.jung.graph.util.EdgeType;
 import edu.uci.ics.jung.visualization.VisualizationViewer;
 
 public class MyMouseMenus {
@@ -46,7 +49,52 @@ public class MyMouseMenus {
             super("Edge Menu");
             this.add(new DeleteEdgeMenuItem<MyLink>());
             this.addSeparator();
+            this.add(new EdgeCheckBoxItem());
             this.add(new EdgePropItem(frame));           
+        }
+        
+    }
+    
+    
+    @SuppressWarnings("unchecked")
+	public static class EdgeCheckBoxItem extends JCheckBoxMenuItem implements EdgeMenuListener<MyLink>,
+            MenuPointListener {
+    	/**
+		 * 
+		 */
+		private static final long serialVersionUID = 3333189256173310513L;
+
+		MyLink edge;
+		
+		CustomSparseGraph graph;
+		VisualizationViewer visComp;
+        Point2D point;
+        
+        public void setEdgeAndView(MyLink edge, VisualizationViewer visComp) {
+            this.edge = edge;
+            this.visComp = visComp;
+            this.graph = (CustomSparseGraph) visComp.getGraphLayout().getGraph();
+            if (graph.getEdgeType(edge).equals(EdgeType.DIRECTED))
+            	this.setSelected(true);
+            else 
+            	this.setSelected(false);
+        }
+
+        public void setPoint(Point2D point) {
+            this.point = point;
+        }
+        
+        public EdgeCheckBoxItem() {            
+            super("Asymmetric");
+            this.addActionListener(new ActionListener() {
+                public void actionPerformed(ActionEvent e) {
+                    visComp.getPickedEdgeState().pick(edge, false);
+                    
+                    graph.swapEdgeType(edge);
+                    visComp.repaint();
+                }
+                
+            });
         }
         
     }

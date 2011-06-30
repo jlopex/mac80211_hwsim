@@ -37,13 +37,14 @@ import javax.swing.JPopupMenu;
 import javax.swing.JTextArea;
 import javax.swing.UIManager;
 
-import org.apache.commons.collections15.Factory;
 import org.apache.commons.collections15.Transformer;
 import org.wmediumd.dialogs.FileChooser;
-import org.wmediumd.entities.CustomDirectedSparseGraph;
 import org.wmediumd.entities.MyLink;
 import org.wmediumd.entities.MyNode;
 import org.wmediumd.entities.ProbMatrix;
+import org.wmediumd.factories.EdgeFactory;
+import org.wmediumd.factories.VertexFactory;
+import org.wmediumd.graphs.CustomSparseGraph;
 import org.wmediumd.menus.MyMouseMenus;
 import org.wmediumd.plugin.PopupVertexEdgeMenuMousePlugin;
 
@@ -58,7 +59,7 @@ import edu.uci.ics.jung.visualization.renderers.Renderer.VertexLabel.Position;
 
 public class WmediumdGraphView {
 
-	private CustomDirectedSparseGraph<MyNode, MyLink> graph;
+	public CustomSparseGraph<MyNode, MyLink> graph;
 	private JFrame frame;
 	public JTextArea log;
 
@@ -71,7 +72,7 @@ public class WmediumdGraphView {
 		JMenu menu;
 		JMenuItem menuItem;
 
-		setup();
+		setup();	
 		setupVisualization();
 		setupMouse();
 
@@ -142,7 +143,7 @@ public class WmediumdGraphView {
 
 	private void setup () {
 		// Create our graph to save all info
-		graph = new CustomDirectedSparseGraph<MyNode, MyLink>();
+		graph = new CustomSparseGraph<MyNode, MyLink>();
 		// Set the Frame
 		frame = new JFrame("Wmediumd Visual Editor");
 	}
@@ -181,7 +182,7 @@ public class WmediumdGraphView {
 
 				if (plossSum > 0.0f) {
 					// For each Link estimate the quality and create a custom stroke
-					float dash[] = {s.getPlossSumFloat()*5 };
+					float dash[] = {13-s.getPlossSumFloat(), s.getPlossSumFloat()};
 					return new BasicStroke(1.5f, BasicStroke.CAP_BUTT,
 							BasicStroke.JOIN_MITER, 1.0f, dash, 0.0f);
 				} else {
@@ -199,6 +200,7 @@ public class WmediumdGraphView {
 		vViewer.getRenderContext().setEdgeStrokeTransformer(edgeStrokeTransformer);
 		vViewer.getRenderContext().setVertexLabelTransformer(new ToStringLabeller<MyNode>());
 		vViewer.getRenderer().getVertexLabelRenderer().setPosition(Position.CNTR);
+
 
 	}
 
@@ -219,6 +221,8 @@ public class WmediumdGraphView {
 		graphMouse.remove(graphMouse.getEditingPlugin());
 
 		graphMouse.add(myPlugin);   // Add our new plugin to the mouse
+		
+		vViewer.addKeyListener(graphMouse.getModeKeyListener());
 	}
 
 	private String generateConfigString() {
@@ -246,37 +250,7 @@ public class WmediumdGraphView {
 		return sb.toString();	
 	}
 
-	static class VertexFactory implements Factory<MyNode> {
 
-		private static VertexFactory instance = new VertexFactory();
 
-		private VertexFactory() {
-			// Nothing to do here 
-		}
 
-		public static VertexFactory getInstance() {
-			return instance;
-		}
-
-		public MyNode create() {
-			return new MyNode();
-		}
-	}
-
-	static class EdgeFactory implements Factory<MyLink> {
-
-		private static EdgeFactory instance = new EdgeFactory();
-
-		private EdgeFactory() {
-			// Nothing to do here 
-		}
-
-		public static EdgeFactory getInstance() {
-			return instance;
-		}
-
-		public MyLink create() {
-			return new MyLink();
-		}
-	}
 }
