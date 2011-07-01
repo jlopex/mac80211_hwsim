@@ -32,7 +32,7 @@ public class MyNode {
 				return result;
 		}
 	});
-	public static int edgeCount;
+	public static int nodeCount;
 	private int id;
 
 	private String mac;
@@ -40,7 +40,7 @@ public class MyNode {
 	public MyNode() {
 
 		if (ids.isEmpty())
-			ids.offer(edgeCount++);
+			ids.offer(nodeCount++);
 
 		this.id = ids.poll();
 		this.mac = "42:00:00:00:"+ String.format("%02d", id) + ":00";

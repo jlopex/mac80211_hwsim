@@ -31,12 +31,12 @@ import java.io.Writer;
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
 
-public class FileChooser extends JPanel implements ActionListener {
+public class FileChooserSave extends JPanel implements ActionListener {
 
 	private static final long serialVersionUID = 5793073038314518180L;
 	JFileChooser fc;
 
-	public FileChooser(String fileString) {
+	public FileChooserSave(String fileString) {
 
 		//Create a file chooser
 		fc = new JFileChooser();
@@ -51,7 +51,7 @@ public class FileChooser extends JPanel implements ActionListener {
 		//fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 		//fc.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
 
-		int returnVal = fc.showSaveDialog(FileChooser.this);
+		int returnVal = fc.showSaveDialog(FileChooserSave.this);
 		if (returnVal == JFileChooser.APPROVE_OPTION) {
 			File file = fc.getSelectedFile();
 			Writer output;

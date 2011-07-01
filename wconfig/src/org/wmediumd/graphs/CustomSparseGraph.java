@@ -6,12 +6,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Vector;
 
 import org.apache.commons.collections15.Factory;
 import org.wmediumd.entities.MyLink;
 import org.wmediumd.entities.MyNode;
 import org.wmediumd.entities.ProbMatrix;
+import org.wmediumd.entities.ProbMatrixList;
 import org.wmediumd.factories.EdgeFactory;
+import org.wmediumd.factories.VertexFactory;
 
 import edu.uci.ics.jung.graph.AbstractGraph;
 import edu.uci.ics.jung.graph.Graph;
@@ -90,6 +93,13 @@ public class CustomSparseGraph<V,E>
     @Override
     public boolean addEdge(E edge, Pair<? extends V> endpoints, EdgeType edgeType)
     {
+    	// If Ploss is 100% No loop possible
+    	MyLink l = (MyLink)edge;
+    	
+    	if (l.getPlossSum() == 12) {
+    		return false;
+    	}
+    	
     	// No internal loops possible
 		if (endpoints.getFirst().equals(endpoints.getSecond()))
 			return false;
@@ -104,8 +114,16 @@ public class CustomSparseGraph<V,E>
         // undirected edges and directed edges are considered to be parallel to each other,
 
         E connection = findEdge(v1, v2);
-        if (connection != null)// && getEdgeType(connection) == edgeType)
+        if (connection != null )// && getEdgeType(connection) == edgeType)
             return false;
+        
+        // If there's a directional in opposite direction
+        // modify the new edgeType to directional
+        if (edgeType.equals(EdgeType.UNDIRECTED)) {
+        	if (findEdge(v2, v1) != null)
+        		edgeType = EdgeType.DIRECTED;
+        }
+        
 
         if (!containsVertex(v1))
             this.addVertex(v1);
@@ -440,7 +458,7 @@ public class CustomSparseGraph<V,E>
 	}
 
 	public ProbMatrix toMatrix(int rate) {
-		ProbMatrix p = new ProbMatrix(MyNode.edgeCount); 
+		ProbMatrix p = new ProbMatrix(MyNode.nodeCount); 
 
 		for (E e : getEdges()) {
 
@@ -458,5 +476,41 @@ public class CustomSparseGraph<V,E>
 			}
 		}
 		return p;
+	}
+	
+	public void setDataFromMatrixList(ProbMatrixList matrixList) {
+		
+		Vector <MyNode>tmpList = new Vector<MyNode>();
+		
+		for (int i = 0; i < matrixList.nodes(); i++) {
+			MyNode node = VertexFactory.getInstance().create();
+			tmpList.add(node);
+			addVertex((V)node);
+		}
+		
+		for (int i = 0; i < matrixList.nodes(); i++) {
+			for (int j = i+1; j < matrixList.nodes(); j++) {
+				Pair <MyLink> p = matrixList.getEdge(i, j);
+				
+				if (p.getFirst().equals(p.getSecond())) {
+					// Es bidireccional
+					Pair <V> endpoints = new Pair<V> ((V)tmpList.get(i),(V)tmpList.get(j));
+					addEdge((E) p.getFirst(), endpoints, EdgeType.UNDIRECTED);
+				} else {
+					// Se han de hacer dos unidireccionales
+					Pair <V> endpoints = new Pair<V> ((V)tmpList.get(i),(V)tmpList.get(j));
+					addEdge((E) p.getFirst(), endpoints, EdgeType.DIRECTED);
+					
+					endpoints = new Pair<V> ((V)tmpList.get(j),(V)tmpList.get(i));
+					addEdge((E) p.getSecond(), endpoints, EdgeType.DIRECTED);
+				}
+			}
+		}
+	}
+	
+	public void clear() {
+		vertex_maps.clear();
+		directed_edges.clear();
+		undirected_edges.clear();
 	}
 }

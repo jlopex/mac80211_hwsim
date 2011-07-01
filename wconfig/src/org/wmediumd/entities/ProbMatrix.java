@@ -43,6 +43,10 @@ public class ProbMatrix {
 		}
 	}
 	
+	public double getValue(int i, int j) {
+		return data[i][j];
+	}
+	
 	public void setValue(int i, int j, double value) {
 		if (i == j)
 			return;
@@ -73,5 +77,38 @@ public class ProbMatrix {
         sb.append("]");
         return sb.toString();
     }
+
+	public void fromLinearString(String in) {
+		String[] probs = in.split(",");
+		
+		for (int i = 0; i < M; i++) {
+			for (int j = 0; j < N ; j++) {
+				data[i][j] = Double.parseDouble(probs[i*M+j]);
+			}
+		}
+	}
+	
+	public boolean isSymmetric() {
+		
+	    for(int i = 0; i < M; i++)
+	    {
+	        for(int j = 0; j < N; j++)
+	        {
+	            if(!isLinkSymmetric(i,j))
+	                return false;
+	        }
+	    }
+	    return true;
+	}
+
+	public int size() {
+		return M;
+	}
+
+	public boolean isLinkSymmetric(int i, int j) {
+        if(data[i][j] == data[j][i])
+            return true;
+        return false;
+	}
 
 }

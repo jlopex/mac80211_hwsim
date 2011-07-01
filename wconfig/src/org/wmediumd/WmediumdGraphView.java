@@ -38,7 +38,8 @@ import javax.swing.JTextArea;
 import javax.swing.UIManager;
 
 import org.apache.commons.collections15.Transformer;
-import org.wmediumd.dialogs.FileChooser;
+import org.wmediumd.dialogs.FileChooserLoad;
+import org.wmediumd.dialogs.FileChooserSave;
 import org.wmediumd.entities.MyLink;
 import org.wmediumd.entities.MyNode;
 import org.wmediumd.entities.ProbMatrix;
@@ -48,8 +49,8 @@ import org.wmediumd.graphs.CustomSparseGraph;
 import org.wmediumd.menus.MyMouseMenus;
 import org.wmediumd.plugin.PopupVertexEdgeMenuMousePlugin;
 
+import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
-import edu.uci.ics.jung.algorithms.layout.StaticLayout;
 import edu.uci.ics.jung.visualization.VisualizationViewer;
 import edu.uci.ics.jung.visualization.control.EditingModalGraphMouse;
 import edu.uci.ics.jung.visualization.control.ModalGraphMouse;
@@ -82,19 +83,48 @@ public class WmediumdGraphView {
 		menu = new JMenu();
 		menu.setText("File");
 		menu.setIcon(null); 
+		
+		menuItem = new JMenuItem("New file");
+		menuItem.setIcon(UIManager.getIcon("FileView.fileIcon"));
+		menuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent evt) {
+				// TODO Use the Factory
+				MyNode.nodeCount = 0;
+				MyLink.linkCount = 0;
+				graph.clear();
+				frame.repaint();
+			}
+		});
+		menu.add(menuItem);
+		
+		menuItem = new JMenuItem("Load file");
+		menuItem.setIcon(UIManager.getIcon("FileChooser.upFolderIcon"));
+		menuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent evt) {
+					FileChooserLoad fl = new FileChooserLoad();
+					if (fl.getMatrixList().rates() == MyLink.rates) {
+						graph.clear();
+						graph.setDataFromMatrixList(fl.getMatrixList());
+						frame.repaint();
+					}
+					
+			}
+		});
+		menu.add(menuItem);
+		
 
 		menuItem = new JMenuItem("Save as...");
 		menuItem.setIcon(UIManager.getIcon("FileView.floppyDriveIcon"));
 		menuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent evt) {
-				if (MyNode.edgeCount > 1) {
+				if (MyNode.nodeCount > 1) {
 					System.out.println(generateConfigString());
-					new FileChooser(generateConfigString());
+					new FileChooserSave(generateConfigString());
 				}
 			}
 		});
-
 		menu.add(menuItem);
+		
 		menu.addSeparator();
 		menuItem = new JMenuItem("Exit");
 		menuItem.setIcon(UIManager.getIcon("InternalFrame.closeIcon"));
@@ -120,7 +150,7 @@ public class WmediumdGraphView {
 
 				JOptionPane.showMessageDialog(frame,
 						"Wireless medium daemon\n" +
-						"configuration tool <v0.1>\n\n" +
+						"configuration tool <v0.2b>\n\n" +
 						"(C) 2011 - Javier Lopez\n" +
 						"<jlopex@gmail.com>\n",
 						"About",
@@ -150,7 +180,7 @@ public class WmediumdGraphView {
 
 	private void setupVisualization() {
 		// Create a Layout to display our graph data
-		Layout<MyNode, MyLink> layout = new StaticLayout<MyNode, MyLink>(graph);
+		Layout<MyNode, MyLink> layout = new FRLayout<MyNode, MyLink>(graph);
 		layout.setSize(new Dimension(640,480)); // Sets the initial size of the space
 
 		Transformer<MyNode,Paint> vertexPaint = new Transformer<MyNode,Paint>() {
@@ -182,7 +212,7 @@ public class WmediumdGraphView {
 
 				if (plossSum > 0.0f) {
 					// For each Link estimate the quality and create a custom stroke
-					float dash[] = {13-s.getPlossSumFloat(), s.getPlossSumFloat()};
+					float dash[] = {12.5f - s.getPlossSumFloat(), s.getPlossSumFloat()};
 					return new BasicStroke(1.5f, BasicStroke.CAP_BUTT,
 							BasicStroke.JOIN_MITER, 1.0f, dash, 0.0f);
 				} else {
@@ -229,10 +259,10 @@ public class WmediumdGraphView {
 
 		StringBuffer sb = new StringBuffer();
 		sb.append("ifaces :\n{\n\tcount = ");
-		sb.append(MyNode.edgeCount);
+		sb.append(MyNode.nodeCount);
 		sb.append(";\n\tids = [");
 
-		for (int i = 0; i < MyNode.edgeCount; i++) {
+		for (int i = 0; i < MyNode.nodeCount; i++) {
 			sb.append("\"42:00:00:00:"+ String.format("%02d", i) + ":00\", ");
 		}
 		sb.deleteCharAt(sb.length()-2);

@@ -52,10 +52,8 @@ public class MyMouseMenus {
             this.add(new EdgeCheckBoxItem());
             this.add(new EdgePropItem(frame));           
         }
-        
     }
-    
-    
+
     @SuppressWarnings("unchecked")
 	public static class EdgeCheckBoxItem extends JCheckBoxMenuItem implements EdgeMenuListener<MyLink>,
             MenuPointListener {
@@ -121,15 +119,14 @@ public class MyMouseMenus {
             this.point = point;
         }
         
-        public  EdgePropItem(final JFrame frame) {            
+        public EdgePropItem(final JFrame frame) {            
             super("Edit Edge Properties...");
             this.addActionListener(new ActionListener() {
                 public void actionPerformed(ActionEvent e) {
-                    EdgePropertyDialog dialog = new EdgePropertyDialog(frame, edge);
+                    EdgePropertyDialog dialog = new EdgePropertyDialog(frame, edge, visComp);
                     dialog.setLocation((int)point.getX()+ frame.getX(), (int)point.getY()+ frame.getY());
                     dialog.setVisible(true);
                 }
-                
             });
         }
         

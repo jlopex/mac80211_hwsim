@@ -35,6 +35,8 @@ import javax.swing.JTextField;
 
 import org.wmediumd.entities.MyLink;
 
+import edu.uci.ics.jung.visualization.VisualizationViewer;
+
 public class EdgePropertyDialog extends javax.swing.JDialog {
 
 	private static final long serialVersionUID = -6544888894593651971L;
@@ -42,7 +44,9 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 	MyLink edge;
 
 	/** Creates new form EdgePropertyDialog */
-	public EdgePropertyDialog(final java.awt.Frame parent, final MyLink edge) {
+	@SuppressWarnings("unchecked")
+	public EdgePropertyDialog(final java.awt.Frame parent, 
+			final MyLink edge, final VisualizationViewer visComp) {
 		super(parent, true);
 		this.edge = edge;
 		setTitle("Edge: " + edge.toString());
@@ -80,7 +84,9 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 					}
 					edge.setPloss(i,val);
 				}
-				setVisible(false);
+				if (edge.getPlossSum() >= 12)
+					visComp.getGraphLayout().getGraph().removeEdge(edge);
+				setVisible(false);				
 				parent.repaint();
 			}
 		});

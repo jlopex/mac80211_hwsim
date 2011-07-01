@@ -22,13 +22,13 @@ package org.wmediumd.entities;
 
 public class MyLink {
 
-	public static int edgeCount;
+	public static int linkCount;
 	private int id;
 	private double[] pLoss;
 	public static int rates = 12;
 
 	public MyLink() {
-		this.id = edgeCount++;
+		this.id = linkCount++;
 		this.pLoss = new double[rates];
 	}
 
@@ -40,9 +40,9 @@ public class MyLink {
 		return "Link: "+ id + " with Ploss " + pLoss;
 	}
 
-	public void setPloss(double[] pLoss) {
-		this.pLoss = pLoss;
-	}
+//	public void setPloss(double[] pLoss) {
+//		this.pLoss = pLoss;
+//	}
 
 	public void setPloss(int pos, double value) {
 		this.pLoss[pos] = value;
