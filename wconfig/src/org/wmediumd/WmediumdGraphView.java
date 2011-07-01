@@ -175,7 +175,7 @@ public class WmediumdGraphView {
 		// Create our graph to save all info
 		graph = new CustomSparseGraph<MyNode, MyLink>();
 		// Set the Frame
-		frame = new JFrame("Wmediumd Visual Editor");
+		frame = new JFrame("Wmediumd Configuration Tool");
 	}
 
 	private void setupVisualization() {
