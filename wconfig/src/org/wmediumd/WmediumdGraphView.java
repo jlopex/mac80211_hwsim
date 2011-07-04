@@ -27,6 +27,7 @@ import java.awt.Paint;
 import java.awt.Stroke;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
 
 import javax.swing.JFrame;
 import javax.swing.JMenu;
@@ -143,6 +144,17 @@ public class WmediumdGraphView {
 		menuBar.add(menu);
 
 		menu = new JMenu("Help");
+		
+		menuItem = new JMenuItem("Help");
+		menuItem.setIcon(UIManager.getIcon("FileChooser.detailsViewIcon"));
+		menuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent evt) {
+				openURL("http://o11s.org/trac/wiki/MeshTestingWmediumd#a4.1.Usingwconfig");
+			}
+		});
+		menu.add(menuItem);
+		menu.addSeparator();
+		
 		menuItem = new JMenuItem("About");
 		menuItem.setIcon(UIManager.getIcon("FileChooser.homeFolderIcon"));
 		menuItem.addActionListener(new ActionListener() {
@@ -159,6 +171,7 @@ public class WmediumdGraphView {
 			}
 		});
 		menu.add(menuItem);
+		
 		menuBar.add(menu);
 
 		graphMouse.setMode(ModalGraphMouse.Mode.EDITING); // Start off in editing mode
@@ -280,7 +293,27 @@ public class WmediumdGraphView {
 		return sb.toString();	
 	}
 
-
-
+	public void openURL(String url) {
+        String osName = System.getProperty("os.name");
+        try {
+                if (osName.startsWith("Windows"))
+                        Runtime.getRuntime().exec(
+                                        "rundll32 url.dll,FileProtocolHandler " + url);
+                else {
+                        String[] browsers = { "firefox", "opera", "konqueror",
+                                        "epiphany", "mozilla", "netscape" };
+                        String browser = null;
+                        for (int count = 0; count < browsers.length && browser == null; count++)
+                                if (Runtime.getRuntime().exec(
+                                                new String[] { "which", browsers[count] })
+                                                .waitFor() == 0)
+                                        browser = browsers[count];
+                        Runtime.getRuntime().exec(new String[] { browser, url });
+                }
+        } catch (Exception e) {
+                JOptionPane.showMessageDialog(null, "Error in opening browser"
+                                + ":\n" + e.getLocalizedMessage());
+        }
+	}
 
 }
