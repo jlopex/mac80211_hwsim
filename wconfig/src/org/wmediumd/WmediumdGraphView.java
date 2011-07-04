@@ -27,7 +27,7 @@ import java.awt.Paint;
 import java.awt.Stroke;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
+import java.lang.reflect.Method;
 
 import javax.swing.JFrame;
 import javax.swing.JMenu;
@@ -84,7 +84,7 @@ public class WmediumdGraphView {
 		menu = new JMenu();
 		menu.setText("File");
 		menu.setIcon(null); 
-		
+
 		menuItem = new JMenuItem("New file");
 		menuItem.setIcon(UIManager.getIcon("FileView.fileIcon"));
 		menuItem.addActionListener(new ActionListener() {
@@ -97,22 +97,22 @@ public class WmediumdGraphView {
 			}
 		});
 		menu.add(menuItem);
-		
+
 		menuItem = new JMenuItem("Load file");
 		menuItem.setIcon(UIManager.getIcon("FileChooser.upFolderIcon"));
 		menuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent evt) {
-					FileChooserLoad fl = new FileChooserLoad();
-					if (fl.getMatrixList().rates() == MyLink.rates) {
-						graph.clear();
-						graph.setDataFromMatrixList(fl.getMatrixList());
-						frame.repaint();
-					}
-					
+				FileChooserLoad fl = new FileChooserLoad();
+				if (fl.getMatrixList().rates() == MyLink.rates) {
+					graph.clear();
+					graph.setDataFromMatrixList(fl.getMatrixList());
+					frame.repaint();
+				}
+
 			}
 		});
 		menu.add(menuItem);
-		
+
 
 		menuItem = new JMenuItem("Save as...");
 		menuItem.setIcon(UIManager.getIcon("FileView.floppyDriveIcon"));
@@ -125,7 +125,7 @@ public class WmediumdGraphView {
 			}
 		});
 		menu.add(menuItem);
-		
+
 		menu.addSeparator();
 		menuItem = new JMenuItem("Exit");
 		menuItem.setIcon(UIManager.getIcon("InternalFrame.closeIcon"));
@@ -144,7 +144,7 @@ public class WmediumdGraphView {
 		menuBar.add(menu);
 
 		menu = new JMenu("Help");
-		
+
 		menuItem = new JMenuItem("Help");
 		menuItem.setIcon(UIManager.getIcon("FileChooser.detailsViewIcon"));
 		menuItem.addActionListener(new ActionListener() {
@@ -154,7 +154,7 @@ public class WmediumdGraphView {
 		});
 		menu.add(menuItem);
 		menu.addSeparator();
-		
+
 		menuItem = new JMenuItem("About");
 		menuItem.setIcon(UIManager.getIcon("FileChooser.homeFolderIcon"));
 		menuItem.addActionListener(new ActionListener() {
@@ -171,7 +171,7 @@ public class WmediumdGraphView {
 			}
 		});
 		menu.add(menuItem);
-		
+
 		menuBar.add(menu);
 
 		graphMouse.setMode(ModalGraphMouse.Mode.EDITING); // Start off in editing mode
@@ -264,7 +264,7 @@ public class WmediumdGraphView {
 		graphMouse.remove(graphMouse.getEditingPlugin());
 
 		graphMouse.add(myPlugin);   // Add our new plugin to the mouse
-		
+
 		vViewer.addKeyListener(graphMouse.getModeKeyListener());
 	}
 
@@ -293,27 +293,33 @@ public class WmediumdGraphView {
 		return sb.toString();	
 	}
 
-	public void openURL(String url) {
-        String osName = System.getProperty("os.name");
-        try {
-                if (osName.startsWith("Windows"))
-                        Runtime.getRuntime().exec(
-                                        "rundll32 url.dll,FileProtocolHandler " + url);
-                else {
-                        String[] browsers = { "firefox", "opera", "konqueror",
-                                        "epiphany", "mozilla", "netscape" };
-                        String browser = null;
-                        for (int count = 0; count < browsers.length && browser == null; count++)
-                                if (Runtime.getRuntime().exec(
-                                                new String[] { "which", browsers[count] })
-                                                .waitFor() == 0)
-                                        browser = browsers[count];
-                        Runtime.getRuntime().exec(new String[] { browser, url });
-                }
-        } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "Error in opening browser"
-                                + ":\n" + e.getLocalizedMessage());
-        }
+	@SuppressWarnings("unchecked")
+	private void openURL(String url) {
+		String osName = System.getProperty("os.name");
+		try {
+			if (osName.startsWith("Windows")) {
+				Runtime.getRuntime().exec(
+						"rundll32 url.dll,FileProtocolHandler " + url);
+			} else if (osName.startsWith("Mac OS")) {
+				Class fileMgr = Class.forName("com.apple.eio.FileManager");
+				Method openURL = fileMgr.getDeclaredMethod("openURL",
+						new Class[] {String.class});
+				openURL.invoke(null, new Object[] {url});
+			} else {
+				String[] browsers = { "firefox", "opera", "konqueror",
+						"epiphany", "mozilla", "netscape" };
+				String browser = null;
+				for (int count = 0; count < browsers.length && browser == null; count++)
+					if (Runtime.getRuntime().exec(
+							new String[] { "which", browsers[count] })
+							.waitFor() == 0)
+						browser = browsers[count];
+				Runtime.getRuntime().exec(new String[] { browser, url });
+			}
+		} catch (Exception e) {
+			JOptionPane.showMessageDialog(null, "Error in opening browser"
+					+ ":\n" + e.getLocalizedMessage());
+		}
 	}
 
 }
