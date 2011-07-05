@@ -25,8 +25,11 @@ import java.awt.Container;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -40,9 +43,36 @@ import edu.uci.ics.jung.visualization.VisualizationViewer;
 public class EdgePropertyDialog extends javax.swing.JDialog {
 
 	private static final long serialVersionUID = -6544888894593651971L;
+
+	public enum Rates {
+		 _1_Mbps, 
+		 _2_Mbps, 
+		 _5d5Mbps, 
+		 _11_Mbps, 
+		 _6_Mbps,
+		 _9_Mbps,
+		 _12_Mbps,
+		 _18_Mbps,
+		 _24_Mbps,
+		 _36_Mbps,
+		 _48_Mbps,
+		 _54_Mbps;  //; is required here.
+
+		 @Override public String toString() {
+		   //only capitalize the first letter
+		   String s = super.toString();
+		   s = s.replace('d', '.');
+		   s = s.substring(1).toLowerCase();
+		   s = s.replace('_', ' ');
+		   return s;
+		 }
+	}
+	
 	List <JTextField> textFields = new LinkedList<JTextField>();
 	MyLink edge;
 
+	
+	
 	/** Creates new form EdgePropertyDialog */
 	@SuppressWarnings("unchecked")
 	public EdgePropertyDialog(final java.awt.Frame parent, 
@@ -51,24 +81,27 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 		this.edge = edge;
 		setTitle("Edge: " + edge.toString());
 
-		this.setSize(340, 290);
+//		this.setSize(340, 290);
 		final Container cp = this.getContentPane();
 
-		Container cp2 = new Container();
+		NumberFormat nf = NumberFormat.getNumberInstance(Locale.US);
+    	DecimalFormat df = (DecimalFormat)nf;
+    	df.applyPattern("0.000");
+		
+		Container container = new Container();
 
-		cp2.setLayout(new GridLayout(12, 2));
+		container.setLayout(new GridLayout(12, 2));
 		for (int i = 0; i < 12; i++) {
-			cp2.add(new JLabel("Loss prob at rate: " + i));
-
-			JTextField textField = new JTextField(String.valueOf(edge.getPloss(i)));
+			container.add(new JLabel("Loss prob at " + Rates.values()[i].toString()));
+			JTextField textField = new JTextField();
+			textField.setText(df.format(edge.getPloss(i)));
+			textField.setSelectionStart(0);
+			textField.setSelectionEnd(textField.getText().length());
 			textFields.add(textField);
-			cp2.add(textField);
+			container.add(textField);
 		}
-		cp2.setSize(320, 250);
 		JButton ok=new JButton("OK");
-
 		ok.addActionListener(new ActionListener() {
-
 			public void actionPerformed(ActionEvent e) {
 				for (int i = 0 ; i < 12; i++) {
 
@@ -90,7 +123,10 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 				parent.repaint();
 			}
 		});
-		cp.add(cp2, BorderLayout.NORTH);
+		
+		cp.add(container, BorderLayout.NORTH);
 		cp.add(ok, BorderLayout.SOUTH);
+	
+		this.pack();
 	}
 }
