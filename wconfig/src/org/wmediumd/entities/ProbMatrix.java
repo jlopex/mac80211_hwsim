@@ -21,6 +21,8 @@
 package org.wmediumd.entities;
 
 import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 public class ProbMatrix {
 	private int M;             // number of rows
@@ -65,7 +67,9 @@ public class ProbMatrix {
     
     public String toLinearString() {
     	
-    	DecimalFormat df = new DecimalFormat("0.000");
+    	NumberFormat nf = NumberFormat.getNumberInstance(Locale.US);
+    	DecimalFormat df = (DecimalFormat)nf;
+    	df.applyPattern("0.000");
     	StringBuffer sb = new StringBuffer("[ ");
         for (int i = 0; i < M; i++) {
             for (int j = 0; j < N; j++) {	
@@ -78,14 +82,23 @@ public class ProbMatrix {
         return sb.toString();
     }
 
-	public void fromLinearString(String in) {
+	public boolean fromLinearString(String in) {
+		
 		String[] probs = in.split(",");
 		
+		if (probs.length > M*N) {
+		System.err.println("Something wrong happened parsing prob_matrix, " +
+					"check for values and not correct format.");
+			return false;
+			
+		}
+	
 		for (int i = 0; i < M; i++) {
 			for (int j = 0; j < N ; j++) {
 				data[i][j] = Double.parseDouble(probs[i*M+j]);
 			}
 		}
+		return true;
 	}
 	
 	public boolean isSymmetric() {

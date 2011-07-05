@@ -104,6 +104,8 @@ public class WmediumdGraphView {
 			public void actionPerformed(ActionEvent evt) {
 				FileChooserLoad fl = new FileChooserLoad();
 				if (fl.getMatrixList().rates() == MyLink.rates) {
+					MyNode.nodeCount = 0;
+					MyLink.linkCount = 0;
 					graph.clear();
 					graph.setDataFromMatrixList(fl.getMatrixList());
 					frame.repaint();
