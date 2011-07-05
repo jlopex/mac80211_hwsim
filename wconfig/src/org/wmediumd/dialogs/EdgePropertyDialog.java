@@ -62,7 +62,7 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 		   //only capitalize the first letter
 		   String s = super.toString();
 		   s = s.replace('d', '.');
-		   s = s.substring(1).toLowerCase();
+		   s = s.substring(1);
 		   s = s.replace('_', ' ');
 		   return s;
 		 }
