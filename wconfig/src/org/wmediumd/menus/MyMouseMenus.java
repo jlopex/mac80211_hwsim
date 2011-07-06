@@ -120,7 +120,7 @@ public class MyMouseMenus {
         }
         
         public EdgePropItem(final JFrame frame) {            
-            super("Edit Edge Properties...");
+            super("Edit link Properties...");
             this.addActionListener(new ActionListener() {
                 public void actionPerformed(ActionEvent e) {
                     EdgePropertyDialog dialog = new EdgePropertyDialog(frame, edge, visComp);

@@ -21,6 +21,7 @@
 package org.wmediumd.dialogs;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Container;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
@@ -79,7 +80,7 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 			final MyLink edge, final VisualizationViewer visComp) {
 		super(parent, true);
 		this.edge = edge;
-		setTitle("Edge: " + edge.toString());
+		setTitle("Link: " + edge.toString());
 
 //		this.setSize(340, 290);
 		final Container cp = this.getContentPane();
@@ -102,21 +103,53 @@ public class EdgePropertyDialog extends javax.swing.JDialog {
 		}
 		JButton ok=new JButton("OK");
 		ok.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e) {
-				for (int i = 0 ; i < 12; i++) {
+			
+			
 
-					double val = Double.parseDouble(textFields.get(i).getText());
-					if (val > 1.0 || val < 0.0) {
-						JOptionPane.showMessageDialog(parent,
-								"Check given data, loss probabilities defined from\n" +
-								"0.0 to 1.0, where 0.0 means perfect channel\n" + 
-								"and 1.0 means a link with 100% frame loss.",
-								"Value error",
-								JOptionPane.ERROR_MESSAGE);
-						return;
+			public void actionPerformed(ActionEvent e) {
+				
+				boolean error = false;
+				
+				for (int i = 0 ; i < 12; i++) {
+					
+					String textfield = textFields.get(i).getText();
+					
+					/* Check if textfield contains a comma 
+					   character instead a point character */
+					if (textfield.contains(","))
+						textfield = textfield.replace(',', '.');
+					
+					double parsedValue;
+					
+					try {
+						parsedValue = Double.parseDouble(textfield);
+					} catch (Exception ex) {
+						error = true;
+						textFields.get(i).setBackground(Color.ORANGE);
+						continue;
 					}
-					edge.setPloss(i,val);
+					
+					if (parsedValue > 1.0 || parsedValue < 0.0) {
+						error = true;
+						textFields.get(i).setBackground(Color.ORANGE);
+					} else {
+						edge.setPloss(i,parsedValue);
+					}
+					
 				}
+				
+				if (error) {
+					JOptionPane.showMessageDialog(parent,
+							"Check given data, loss probabilities defined from\n" +
+							"0.0 to 1.0, where 0.0 means perfect channel\n" + 
+							"and 1.0 means a link with 100% frame loss.",
+							"Value error",
+							JOptionPane.ERROR_MESSAGE);
+					parent.repaint();
+					return;
+				}
+				
+				
 				if (edge.getPlossSum() >= 12)
 					visComp.getGraphLayout().getGraph().removeEdge(edge);
 				setVisible(false);				

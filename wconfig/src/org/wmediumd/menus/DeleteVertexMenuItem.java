@@ -54,7 +54,7 @@ public class DeleteVertexMenuItem<V> extends JMenuItem implements VertexMenuList
     public void setVertexAndView(V v, VisualizationViewer<V, ?> visComp) {
         this.vertex = v;
         this.visComp = visComp;
-        this.setText("Delete Vertex " + v.toString());
+        this.setText("Delete node " + v.toString());
     }
     
 }
