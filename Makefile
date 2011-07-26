@@ -1,6 +1,6 @@
 SHELL=/bin/sh
 MAKE = make
-SUBDIRS = mac80211_hwsim rawsocket wmediumd
+SUBDIRS ?= mac80211_hwsim rawsocket wmediumd
 
 all:
 
