@@ -23,8 +23,9 @@
 #include <stdlib.h>
 
 #include "probability.h"
+#include "wmediumd.h"
 
-extern int jammer;
+extern struct jammer_cfg jam_cfg;
 extern double *prob_matrix; 
 extern int size;
 
@@ -173,10 +174,9 @@ int load_config(const char *file)
 {
 
 	config_t cfg, *cf;
-	const config_setting_t *ids, *prob_list, *mat_array;
+	const config_setting_t *ids, *prob_list, *mat_array, *jammer_s;
 	int count_ids, rates_prob, i, j;
 	long int count_value, rates_value;
-	const char *jammer_v;
 
 	/*initialize the config file*/
 	cf = &cfg;
@@ -192,9 +192,29 @@ int load_config(const char *file)
 		exit(EXIT_FAILURE);
     	}
 
-	config_lookup_string(cf, "jammer", &jammer_v);
-	if (!strcmp(jammer_v, "on")) {
-		jammer = 1;
+	/* get jammer settings */
+	if (!(jammer_s = config_lookup(cf, "jam"))) {
+		printf("Error, malformed config!");
+		exit(EXIT_FAILURE);
+	}
+	switch (config_setting_type(jammer_s)) {
+	case CONFIG_TYPE_STRING:
+		if (!strcmp(config_setting_get_string(jammer_s), "all")) {
+			jam_cfg.jam_all = 1;
+		}
+		break;
+	case CONFIG_TYPE_ARRAY:
+		jam_cfg.nmacs = config_setting_length(jammer_s);
+		jam_cfg.macs = malloc(sizeof(struct mac_address) * jam_cfg.nmacs);
+		if (!jam_cfg.macs) {
+			printf("couldn't allocate jamming mac table!\n");
+			exit(EXIT_FAILURE);
+		}
+		for (i = 0; i < jam_cfg.nmacs; i++) {
+			jam_cfg.macs[i] = string_to_mac_address(
+					      config_setting_get_string_elem(jammer_s, i));
+		}
+		break;
 	}
 
 	/*let's parse the values*/

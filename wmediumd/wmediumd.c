@@ -37,7 +37,7 @@ struct nl_cb *cb;
 struct nl_cache *cache;
 struct genl_family *family;
 
-int jammer = 0;
+struct jammer_cfg jam_cfg;
 double *prob_matrix;
 int size;
 
@@ -194,6 +194,21 @@ void set_all_rates_invalid(struct hwsim_tx_rate* tx_rate)
 	}
 }
 
+/*
+ *	Determine whether we should be jamming this transmitting mac.
+ */
+int jam_mac(struct jammer_cfg *jcfg, struct mac_address *src)
+{
+	int jam = 0, i;
+
+	for (i = 0; i < jcfg->nmacs; i++) {
+		if (!memcmp(&jcfg->macs[i], src, sizeof(struct mac_address))) {
+			jam = 1;
+			break;
+		}
+	}
+	return jam;
+}
 
 /*
  * 	Iterate all the radios and send a copy of the frame to each interface.
@@ -211,8 +226,7 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 
 	int round = 0, tx_ok = 0, counter, i;
 
-	if (jammer) {
-		/* yep, a hack */
+	if (jam_cfg.jam_all || jam_mac(&jam_cfg, src)) {
 		printf("medium busy!\n");
 		return;
 	}
