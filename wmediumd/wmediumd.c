@@ -37,6 +37,7 @@ struct nl_cb *cb;
 struct nl_cache *cache;
 struct genl_family *family;
 
+int jammer = 0;
 double *prob_matrix;
 int size;
 
@@ -210,6 +211,11 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 
 	int round = 0, tx_ok = 0, counter, i;
 
+	if (jammer) {
+		/* yep, a hack */
+		printf("medium busy!\n");
+		return;
+	}
 	/* We prepare the tx_attempts struct */
 	set_all_rates_invalid(tx_attempts);
 

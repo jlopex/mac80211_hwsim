@@ -24,6 +24,7 @@
 
 #include "probability.h"
 
+extern int jammer;
 extern double *prob_matrix; 
 extern int size;
 
@@ -175,6 +176,7 @@ int load_config(const char *file)
 	const config_setting_t *ids, *prob_list, *mat_array;
 	int count_ids, rates_prob, i, j;
 	long int count_value, rates_value;
+	const char *jammer_v;
 
 	/*initialize the config file*/
 	cf = &cfg;
@@ -189,6 +191,11 @@ int load_config(const char *file)
 		config_destroy(cf);
 		exit(EXIT_FAILURE);
     	}
+
+	config_lookup_string(cf, "jammer", &jammer_v);
+	if (!strcmp(jammer_v, "on")) {
+		jammer = 1;
+	}
 
 	/*let's parse the values*/
 	config_lookup_int(cf, "ifaces.count", &count_value);
@@ -250,6 +257,7 @@ int load_config(const char *file)
 			}
 		}
 	}
+
 	config_destroy(cf);
 	return (EXIT_SUCCESS);
 }
