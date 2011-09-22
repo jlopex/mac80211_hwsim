@@ -233,7 +233,8 @@ void send_frames_to_radios_with_retries(struct mac_address *src, char*data,
 	/* We prepare the tx_attempts struct */
 	set_all_rates_invalid(tx_attempts);
 
-	while (tx_rates[round].idx != -1 && tx_ok!=1) {
+	while (round < IEEE80211_MAX_RATES_PER_TX &&
+	       tx_rates[round].idx != -1 && tx_ok!=1) {
 
 		counter = 1;
 
