@@ -1,7 +1,7 @@
 VERSION_STR="\"0.1\""
 
 CFLAGS+=-DVERSION_STR=$(VERSION_STR) -g
-LDFLAGS+=-lnl-3 -lnl-genl-3 -lconfig
+LDFLAGS+=-lnl -lnl-genl -lconfig
 OBJECTS=wmediumd.o probability.o mac_address.o config.o
 
 all: wmediumd 
