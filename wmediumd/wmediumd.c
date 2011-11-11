@@ -63,7 +63,7 @@ double generate_random_double()
 
 int send_tx_info_frame_nl(struct mac_address *src,
 			  unsigned int flags, int signal,
-			  struct hwsim_tx_rate *tx_attempts, 
+			  struct hwsim_tx_rate *tx_attempts,
 			  unsigned long cookie)
 {
 
@@ -407,6 +407,9 @@ void print_help(int exval)
 int main(int argc, char* argv[]) {
 
 	int opt, ifaces;
+
+	/* Set stdout buffering to line mode */
+	setvbuf (stdout, NULL, _IOLBF, BUFSIZ);
 
 	/* no arguments given */
 	if(argc == 1) {
