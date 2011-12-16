@@ -1,0 +1,4 @@
+- jammer is not generated in the configuration template.  That's ok, but
+  wmediumd should not error when loading a connfiguration that does not have a
+  jammer option.
+
