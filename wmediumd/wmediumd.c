@@ -24,6 +24,7 @@
 #include <netlink/genl/family.h>
 #include <stdint.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include "wmediumd.h"
 #include "probability.h"
@@ -37,6 +38,7 @@ struct nl_cb *cb;
 struct nl_cache *cache;
 struct genl_family *family;
 
+int running = 0;
 struct jammer_cfg jam_cfg;
 double *prob_matrix;
 int size;
@@ -353,6 +355,15 @@ int send_register_msg()
 }
 
 /*
+ *	Signal handler
+ */
+void kill_handler() {
+	running = 0;
+}
+
+
+
+/*
  * 	Init netlink
  */
 
@@ -460,6 +471,10 @@ int main(int argc, char* argv[]) {
 
 	print_prob_matrix(prob_matrix);
 
+	/*Handle kill signals*/
+	running = 1;
+	signal(SIGUSR1, kill_handler);
+
 	/*init netlink*/
 	init_netlink();
 
@@ -468,8 +483,17 @@ int main(int argc, char* argv[]) {
 		printf("REGISTER SENT!\n");
 
 	/*We wait for incoming msg*/
-	while(1) {
+	while(running) {
 		nl_recvmsgs_default(sock);
 	}
+	
+	/*Free all memory*/
+	free(sock);
+	free(msg);
+	free(cb);
+	free(cache);
+	free(family);
+	free(prob_matrix);
+
 	return EXIT_SUCCESS;
 }
