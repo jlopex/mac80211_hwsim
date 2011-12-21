@@ -1,6 +1,9 @@
 /*
  *	wmediumd, wireless medium simulator for mac80211_hwsim kernel module
- *	Copyright (C) 2011  Javier Lopez (jlopex@gmail.com)
+ *	Copyright (c) 2011 cozybit Inc.
+ *
+ *	Author:	Javier Lopez	<jlopex@cozybit.com>
+ *		Javier Cardona	<javier@cozybit.com>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
